@@ -74,19 +74,51 @@ Match (n) delete n;
     -e: Disable ignoring packets based on protocol and ports. Default: False
         Warning, some packets are ignored to improve data flow representations.
 
-Be sure to start your Neo4J database. Read README for guideance.
+Be sure to start your Neo4J database. Read README for guidance.
 
 Processing PCAPs can take time. Be patient.
 Yes, you can write a progress bar and submit a pull request.
 ```
 
-# Installation
+# Getting Started
+## Installation
 
 * Clone repository
 * Change directory into the repository
 * Install requirements using `pip install -r requirements.txt`
   * [pyshark](https://pypi.org/project/pyshark/) 
   * [py2neo](https://pypi.org/project/py2neo/) 
+
+## Testing PCAPs
+
+* [ControlThings Industrial Protocol PCAPS](https://github.com/ControlThings-io/ct-samples/tree/master/Protocols)
+  * [Plant1](https://github.com/ControlThings-io/ct-samples/raw/master/Protocols/Combined/Plant1.pcap) - network traffic from a manufacturing plant which contains MODBUS, ENIP/CIP, Profinet, and other protocols
+  * [CounterHack Holiday Hacking Challenge 2013](https://github.com/ControlThings-io/ct-samples/raw/master/Protocols/Combined/SANS_HolidayHack_2013.pcap) - network traffic with a lot of hosts, includes MODBUS traffic (can you find it using Neo4j Bloom?)
+* [ITI Industrial PCAPs](https://github.com/ITI/ICS-Security-Tools/tree/master/pcaps)
+  * [Plant1](https://github.com/ITI/ICS-Security-Tools/raw/master/pcaps/Combined/Plant1.pcap) - network traffic from a manufacturing plant which contains MODBUS, ENIP/CIP, Profinet, and other protocols
+
+# Development
+Here are some helpful hints to help with packet parsing and protocol layers using PyShark.
+
+## Identifying protocol layers within a PCAP
+Use the following code block in iPython to output the layers for each packet. More advanced searches can be performed by using filtering.
+
+```
+import os,sys,re
+import pyshark
+inf = "./Plant1.pcap"
+#inf = "./sansholidayhack2013.pcap"
+packets = pyshark.FileCapture(inf)
+num_packets = 10
+
+cnt = 0
+for p in packets:
+    print(p.layers)
+    cnt = cnt +1
+    if cnt == num_packets: break
+```
+
+![Identifying protocol layers using iPython and PyShark](./images/ipython_pyshark_protocol_layers.gif)
 
 # TODO
 * Include additional industrial protocols in the expected ports and protocols variables
