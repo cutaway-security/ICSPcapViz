@@ -25,6 +25,7 @@ IMPORTANT NOTE: You will need to learn how to use Neo4j to manually process this
 ```
 ### Neo4j Bloom Graph
 ![Plant1 Modbus and CIP Nodes](./images/plant1_modbus_cip.png)
+
 **NOTE: These nodes were manually organized.**
 
 ## Install and Review Neo4j documentation
@@ -41,6 +42,8 @@ IMPORTANT NOTE: You will need to learn how to use Neo4j to manually process this
 * Open the Neo4j browser for the database.
 * Create a script to clear the database, see below. - you may do several runs, this script will help.
 
+![Neo4j Check and Clean Database](./images/neo4j_check_db_clean_db.png)
+
 ### Clear Neo4j Database Script
 ```
 // Clean DB
@@ -49,6 +52,7 @@ Match (n) -[r] -> () delete n,r;
 // Remove all remaining nodes
 Match (n) delete n;
 ```
+
 ## Populating and Using Database
 * Run the 'ICSPcapViz' script
 * Check database contents using the Neo4j browser with the query `MATCH (n) RETURN n`
