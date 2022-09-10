@@ -42,8 +42,6 @@ IMPORTANT NOTE: You will need to learn how to use Neo4j to manually process this
 * Open the Neo4j browser for the database.
 * Create a script to clear the database, see below. - you may do several runs, this script will help.
 
-![Neo4j Check and Clean Database](./images/neo4j_check_db_clean_db.png)
-
 ### Clear Neo4j Database Script
 ```
 // Clean DB
@@ -62,6 +60,8 @@ Match (n) delete n;
   * Search for specific nodes or relationships
   * Export data
   * Export an image (visualize) the network
+
+![Neo4j Check and Clean Database](./images/neo4j_check_db_clean_db.png)
 
 ## Help Message
 ```
