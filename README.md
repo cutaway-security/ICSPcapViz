@@ -103,3 +103,9 @@ Thank you to the following people for their help, input, and testing.
 * CutSec Discord
 * Tom Liston
 * John H. Sawyer
+
+# Similar Projects
+* [multiplex3r/loadPcap.py](https://gist.github.com/multiplex3r/a04a8cfc1dcedb2e5553ff7c850c9450) - great starting point using SCAPY
+* [NetFrenzy](https://github.com/CoalfireFederal/NetFrenzy)
+* [Packet Communication Investigator](https://github.com/michoo/pci)
+* [PCAP Visualization Tool](https://github.com/Sh3lldor/PVT)
