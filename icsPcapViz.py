@@ -1,82 +1,110 @@
 #!/usr/bin/env python3
 import os,sys,re
+import configparser
 import pyshark
 from py2neo import Graph, Node, Relationship
 
 ####################
 # Globals
 ####################
+MAJOR_VER  = '0'
+MINOR_VER  = '2.0'
+VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "==================================="
 DEBUG      = False
 INF        = False
+SERV1      = './ieee_services.ini'
+SERV2      = './ics_services.ini'
 PACKETS    = False
 NEOGRAPH   = False
 TCP        = True 
 UDP        = False
 ICMP       = False
 ARP        = False
-WIN        = False
-ALL        = False
 NEO_PASSWD = 'admin'
 
 ####################
 # FUNCTIONS
 ####################
 def usage():
+    print("%s: %s"%(sys.argv[0],VERSION))
+    print("")
     print("%s [-h] [-d] [-n int] [-l int] [-s int] [-m] [-M list] [-e] [-z] [-f <binary file>]"%(sys.argv[0]))
     print("    -h: This is it.")
-    print("    -d: Turn on debugging.  Default: off")
+    print("    -v: version info.")
+    print("    -d: Turn on debugging. Default: off")
     print("    -f <pcap>: pcap file that contains the data. Required")
     print("    -p: <passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.")
-    print("    -t: Process TC) packets. Default: True")
+    print("    -t: Process TCP packets. Default: True")
     print("    -u: Process UDP packets. Default: False")
     print("    -i: Process ICMP packets. Default: False [NOT IMPLEMENTED]")
     print("    -a: Process ARP packets. Default: False [NOT IMPLEMENTED]")
-    print("    -w: Process Windows packets. Default: False")
-    print("    -e: Disable ignoring packets based on protocol and ports. Default: False")
-    print("        Warning, some packets are ignored to improve data flow representations.")
     print("")
-    print("Be sure to start your Neo4J database. Read README for guideance.")
+    print("Be sure to start your Neo4J database. Read README for guidance.")
     print("")
     print("Processing PCAPs can take time. Be patient.")
     print("Yes, you can write a progress bar and submit a pull request.")
     sys.exit()
 
-def processTCP(inData,inGraph):
+def version():
+    print("%s: %s"%(sys.argv[0],VERSION))
+    sys.exit()
+
+def getKeyByVal(d, val):
+    keys = [k for k, v in d.items() if v == val]
+    if keys:
+        return keys[0]
+    return None
+
+# Process TCP packets
+def processTCP(inHosts,inData,inGraph):
     # TCP Process each server application as s
     for dst in list(inData.keys()):
+        if DEBUG: print('IP: %s Eth: %s'%(dst,getKeyByVal(inHosts,dst)))
         s = Node("Host", name=str(dst))
+        s['ethaddr'] = str(getKeyByVal(inHosts,dst))
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
             c = Node("Host",name=str(src))
+            c['ethaddr'] = str(getKeyByVal(inHosts,src))
             for conn in inData[dst][src]:
-                SENDtcp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/TCP")
+                c['vlan']    = str(conn['vlan'])
+                if DEBUG: print('c[dvlan]: %s'%(c['vlan']))
+                if conn['vlan']:
+                    SENDtcp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/TCP/VLAN:" + str(conn['vlan']))
+                else:
+                    SENDtcp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/TCP")
                 # client is the source, so it goes first
                 inGraph.merge(SENDtcp(c, s), "Host", "name")
 
-def processUDP(inData,inGraph):
+# Process UDP packets
+def processUDP(inHosts,inData,inGraph):
     # UDP Process each server application as s
     for dst in list(inData.keys()):
         s = Node("Host", name=str(dst))
+        #s['ethaddr'] = getKeyByVal(inHosts,dst)
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
             c = Node("Host",name=str(src))
+            #c['ethaddr'] = getKeyByVal(inHosts,src)
             for conn in inData[dst][src]:
                 SENDudp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/UDP")
                 # client is the source, so it goes first
                 inGraph.merge(SENDudp(c, s), "Host", "name")
 
+# Process ICMP packets
 def processICMP():
     print("%s: ICMP is not implemented.")
     usage() # NOT IMPLEMENTED
 
+# Process ARP packets
 def processARP():
     print("%s: ARP is not implemented.")
     usage() # NOT IMPLEMENTED
 
 if __name__ == "__main__":
 
-    ops = ['-h','-d','-f', '-p', '-t', '-u', '-i', '-a', '-w', '-e']
+    ops = ['-h','-d','-f', '-p', '-t', '-u', '-i', '-a', '-v']
     if len(sys.argv) < 2:
         usage()
 
@@ -84,6 +112,8 @@ if __name__ == "__main__":
         op = sys.argv.pop(1)
         if op == '-h':
             usage()
+        if op == '-v':
+            version()
         if op == '-d':
             DEBUG = True
         if op == '-f':
@@ -100,10 +130,6 @@ if __name__ == "__main__":
         if op == '-a':
             ARP = True
             usage() # NOT IMPLEMENTED
-        if op == '-w':
-            WIN = True
-        if op == '-e':
-            ALL = True
         if op not in ops:
             usage()
 
@@ -116,6 +142,17 @@ if __name__ == "__main__":
         print("%s: Failed to open PCAP file: %s."%(sys.arv[0],INF))
         usage()
 
+    # Use services configuration file: TCP, UDP
+    config = configparser.ConfigParser()
+    try:
+        config.read(SERV1)
+    except:
+        print("%s: Failed to open services configuration file: %s."%(sys.arv[0],SERV1))
+    try:
+        config.read(SERV2)
+    except:
+        print("%s: Failed to open services configuration file: %s."%(sys.arv[0],SERV2))
+
     # Connect to Neo4J Database
     try:
         NEOGRAPH = Graph(password=NEO_PASSWD)
@@ -123,29 +160,8 @@ if __name__ == "__main__":
         print("%s: Failed to connect to Neo4J database."%(sys.arv[0]))
         usage()
 
-    ####################
-    # Control variables
-    ####################
-    if not ALL:
-        # Ignore Protocols - used to manage parsing and reduce node clutter
-        ## '_WS.MALFORMED' because data is error or duplicate
-        ## 'TCP' if this is the highest layer, then it is an ACK or FIN
-        tcp_ignore_protos = ['_WS.MALFORMED','TCP']
-        ## 'DHCPV6' because this can produce noise and might be assessment system
-        ## 'SSDP' discover protocol
-        ## 'LLMNR' discover protocol
-        udp_ignore_protos = ['_WS.MALFORMED','DHCPV6','SSDP','LLMNR']
-        # Ignore ports - avoid normal IT traffic that will clutter diagrams
-        ignore_ports  = []
-        if not WIN:
-            tcp_ignore_protos.extend(['SMB','SMB2','NBSS'])
-            ignore_ports.extend([137,139,445])
-        # Expected ports - helps to label industrial protocols correctly
-        # Note: these are the names used by Wireshark to identify the protocol
-        expected_dst_ports = {'CIP':[44818],'CIPCM':[44818],'COTP':[102],'MODBUS':[502],'S7COMM':[102],'SSL':[443,8443,3389],'TDS':[1433]}
-        expected_dst_protos = {102:['S7COMM','COTP'],502:['MODBUS'],1433:['TDS'],3389:['SSL'],44818:['CIP','CIPCM']}
-
     # Storage variables
+    host_addrs = {}
     udp_conn_dict = {}
     tcp_conn_dict = {}
 
@@ -157,80 +173,166 @@ if __name__ == "__main__":
 
         # Check for TCP layer or continue
         if 'TCP Layer' in str(p.layers):
-            # Skip things we don't want
-            ## Skip packet errors and known bypassible protocols
-            if p.highest_layer in tcp_ignore_protos: 
-                #print("Rejecting: %s"%(p.highest_layer))
+            # Update host_addrs
+            host_keys = list(host_addrs.keys())
+            if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = p.ip.dst
+            if p.eth.src not in host_keys: host_addrs[p.eth.src] = p.ip.src
+            # Prefer ports that are less than 1024 to identify service
+            srvport = 0
+            if str(p.tcp.dstport) in config['TCP']: # could cause false flow direction
+                srvport = p.tcp.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif str(p.tcp.srcport) in config['TCP']:
+                srvport = p.tcp.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+            elif int(p.tcp.dstport) < 1024:
+                srvport = p.tcp.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif int(p.tcp.srcport) < 1024: 
+                srvport = p.tcp.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+            elif int(p.tcp.dstport) <= int(p.tcp.srcport): # if = then could be false direction
+                srvport = p.tcp.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif int(p.tcp.srcport) < int(p.tcp.dstport):
+                srvport = p.tcp.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+
+            
+            # If port number selected, find a service name
+            if srvport:
+                if str(srvport) in config['TCP']: 
+                    nameport = config['TCP'][str(srvport)]
+                else:
+                    nameport = p.highest_layer
+            else:
+                if DEBUG: print("Packet not selected: %s"%(str(p.layers)))
                 continue
-            ## Skip non-industrial protocol traffic
-            if p.tcp.srcport in ignore_ports or p.tcp.dstport in ignore_ports: continue
-            ## Force destination port to weed out responses
-            if p.highest_layer in list(expected_dst_ports.keys()):
-                if not (int(p.tcp.dstport) in expected_dst_ports[p.highest_layer]): 
-                    #print("Rejecting: %s Port: %s"%(p.highest_layer,p.tcp.dstport))
-                    continue 
+
+            # Check VLAN tag
+            dvlan = ''
+            vid   = ''
+            vtype = ''
+            if 'VLAN Layer' in str(p.layers):
+                vdata = p['VLAN']
+                if 'id' in list(vdata.field_names): vid = str(vdata.id)
+                if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
+            if vid: 
+                dvlan = vid
+                if vtype: dvlan = dvlan + "/" + vtype
 
             # Process packet
             tcp_conn_keys = list(tcp_conn_dict.keys())
-            # Check for saved conns to destintation
-            if p.ip.dst not in tcp_conn_keys:
-                tcp_conn_dict[p.ip.dst] = {}
-            dst_keys = list(tcp_conn_dict[p.ip.dst].keys())
-            if p.ip.src not in dst_keys:
-                tcp_conn_dict[p.ip.dst][p.ip.src] = []
+            # Check for saved conns to destination
+            if srvport not in tcp_conn_keys:
+                tcp_conn_dict[dsthost] = {}
+            src_keys = list(tcp_conn_dict[dsthost].keys())
+            if srchost not in src_keys:
+                tcp_conn_dict[dsthost][srchost] = []
             # Save source
-            tcp_src_dict = {'srcport':p.tcp.srcport,'dstport':p.tcp.dstport,'proto':p.highest_layer}
-            # Skip if we have already recorded this type of connection
-            if tcp_src_dict not in tcp_conn_dict[p.ip.dst][p.ip.src]:
-                # Skip if we have similar srcport and dstport combinations
-                sim_conns = False
-                for e in tcp_conn_dict[p.ip.dst][p.ip.src]:
-                    if (tcp_src_dict['srcport'] == e['srcport'] and tcp_src_dict['dstport'] == e['dstport']) or (tcp_src_dict['srcport'] == e['dstport'] and tcp_src_dict['dstport'] == e['srcport']):
-                        sim_conns = True
-                        # Test for higher layer protocol than TCP
-                        if e['proto'] == 'TCP' and not (tcp_src_dict['proto'] == e['proto']):
-                            e['proto'] = tcp_src_dict['proto']
-                if not sim_conns: 
-                    tcp_conn_dict[p.ip.dst][p.ip.src].append(tcp_src_dict)
+            tcp_src_dict = {'dstport':srvport,'proto':nameport,'vlan':dvlan}
+            tcp_conn_dict[dsthost][srchost].append(tcp_src_dict)
 
-        # Check for UDP layer or continue
-        if 'UDP Layer' in str(p.layers):       # Process
-            # Skip things we don't want
-            ## Skip packet errors and known bypassible protocols
-            if p.highest_layer in udp_ignore_protos or 'IPV6 Layer' in p.layers: 
-                #print("Rejecting: %s"%(p.highest_layer))
+        # Check for UDP layer or continue, check IP later to skip IPv6
+        if 'UDP Layer' in str(p.layers) and 'IP Layer' in str(p.layers):
+            # Update host_addrs
+            host_keys = list(host_addrs.keys())
+            if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = p.ip.dst
+            if p.eth.src not in host_keys: host_addrs[p.eth.src] = p.ip.src
+            # Prefer ports that are less than 1024 to identify service
+            srvport = 0
+            if str(p.udp.dstport) in config['UDP']: # could cause false flow direction
+                srvport = p.udp.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif str(p.udp.srcport) in config['UDP']:
+                srvport = p.udp.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+            elif int(p.udp.dstport) < 1024:
+                srvport = p.udp.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif int(p.udp.srcport) < 1024: 
+                srvport = p.udp.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+            elif int(p.udp.dstport) <= int(p.udp.srcport): # if = then could be false direction
+                srvport = p.udp.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif int(p.udp.srcport) < int(p.udp.dstport):
+                srvport = p.udp.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+
+            # If port number selected, find a service name
+            if srvport:
+                if str(srvport) in config['UDP']: 
+                    nameport = config['UDP'][str(srvport)]
+                else:
+                    nameport = p.highest_layer
+            else:
                 continue
-            ## Skip broadcast addresses
-            if re.search(".255$",p.ip.dst):
-                continue
+
+            # Check VLAN tag
+            dvlan = ''
+            vid   = ''
+            vtype = ''
+            if 'VLAN Layer' in str(p.layers):
+                vdata = p['VLAN']
+                if 'id' in list(vdata.field_names): vid = str(vdata.id)
+                if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
+            if vid: 
+                dvlan = vid
+                if vtype: dvlan = dvlan + "/" + vtype
 
             # Process packet
             udp_conn_keys = list(udp_conn_dict.keys())
-            # Check for saved conns to destintation
-            if p.ip.dst not in udp_conn_keys:
-                udp_conn_dict[p.ip.dst] = {}
-            dst_keys = list(udp_conn_dict[p.ip.dst].keys())
-            if p.ip.src not in dst_keys:
-                udp_conn_dict[p.ip.dst][p.ip.src] = []
+            # Check for saved conns to destination
+            if srvport not in udp_conn_keys:
+                udp_conn_dict[dsthost] = {}
+            src_keys = list(udp_conn_dict[dsthost].keys())
+            if srchost not in src_keys:
+                udp_conn_dict[dsthost][srchost] = []
             # Save source
-            udp_src_dict = {'srcport':p.udp.srcport,'dstport':p.udp.dstport,'proto':p.highest_layer}
-            # Skip if we have already recorded this type of connection
-            if udp_src_dict not in udp_conn_dict[p.ip.dst][p.ip.src]:
-                # Skip if we have similar srcport and dstport combinations
-                sim_conns = False
-                for e in udp_conn_dict[p.ip.dst][p.ip.src]:
-                    if (udp_src_dict['srcport'] == e['srcport'] and udp_src_dict['dstport'] == e['dstport']) or (udp_src_dict['srcport'] == e['dstport'] and udp_src_dict['dstport'] == e['srcport']):
-                        sim_conns = True
-                        # Test for higher layer protocol than TCP
-                        if e['proto'] == 'TCP' and not (udp_src_dict['proto'] == e['proto']):
-                            e['proto'] = udp_src_dict['proto']
-                if not sim_conns: 
-                    udp_conn_dict[p.ip.dst][p.ip.src].append(udp_src_dict)
+            udp_src_dict = {'dstport':srvport,'proto':nameport,'vlan':dvlan}
+            udp_conn_dict[dsthost][srchost].append(udp_src_dict)
 
 if TCP:
-    processTCP(tcp_conn_dict,NEOGRAPH)
+    processTCP(host_addrs,tcp_conn_dict,NEOGRAPH)
 if UDP:
-    processUDP(udp_conn_dict,NEOGRAPH)
+    processUDP(host_addrs,udp_conn_dict,NEOGRAPH)
 if ICMP:
     processICMP()
 if ARP:
