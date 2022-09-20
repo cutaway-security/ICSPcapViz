@@ -65,18 +65,18 @@ Match (n) delete n;
 
 ## Help Message
 ```
+./icsPcapViz.py: 0.2.0
+
 ./icsPcapViz.py [-h] [-d] [-n int] [-l int] [-s int] [-m] [-M list] [-e] [-z] [-f <binary file>]
     -h: This is it.
-    -d: Turn on debugging.  Default: off
+    -v: version info.
+    -d: Turn on debugging. Default: off
     -f <pcap>: pcap file that contains the data. Required
     -p: <passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.
-    -t: Process TC) packets. Default: True
+    -t: Process TCP packets. Default: True
     -u: Process UDP packets. Default: False
     -i: Process ICMP packets. Default: False [NOT IMPLEMENTED]
     -a: Process ARP packets. Default: False [NOT IMPLEMENTED]
-    -w: Process Windows packets. Default: False
-    -e: Disable ignoring packets based on protocol and ports. Default: False
-        Warning, some packets are ignored to improve data flow representations.
 
 Be sure to start your Neo4J database. Read README for guidance.
 
@@ -125,7 +125,6 @@ for p in packets:
 ![Identifying protocol layers using iPython and PyShark](./images/ipython_pyshark_protocol_layers.gif)
 
 # TODO
-* Include additional industrial protocols in the expected ports and protocols variables
 * Add property information to the nodes to include data like interface hardware addresses and vendors
 * Colorize nodes to help with display in Neo4j browser
 * Determine if nodes can be automatically organized by Neo4j browser
