@@ -8,7 +8,7 @@ from py2neo import Graph, Node, Relationship
 # Globals
 ####################
 MAJOR_VER  = '0'
-MINOR_VER  = '3.0'
+MINOR_VER  = '4.0'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "==================================="
 DEBUG      = False
@@ -22,6 +22,8 @@ UDP        = False
 ICMP       = False
 ARP        = False
 NEO_PASSWD = 'admin'
+NODE_NAME  = 'Host'
+DISPLAY_FILTER = None
 
 ####################
 # FUNCTIONS
@@ -29,14 +31,16 @@ NEO_PASSWD = 'admin'
 def usage():
     print("%s: %s"%(sys.argv[0],VERSION))
     print("")
-    print("%s [-h] [-d] [-n int] [-l int] [-s int] [-m] [-M list] [-e] [-z] [-f <binary file>]"%(sys.argv[0]))
+    print("%s -f <capture_file> [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a]"%(sys.argv[0]))
     print("    -h: This is it.")
     print("    -v: version info.")
     print("    -d: Turn on debugging. Default: off")
-    print("    -f <pcap>: pcap file that contains the data. Required")
-    print("    -p: <passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.")
+    print("    -f <capture_file>: PCAP file that contains the data. Required")
+    print("    -p: <neo4j_passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.")
     print("    -t: Do NOT process TCP packets. Default: True")
     print("    -u: Process UDP packets. Default: False")
+    print("    -n <node_name>: Special node names to identify a subnet. Default: Host")
+    print("    -c <display_filter>: Display filter to use search PCAP. Default: None")
     print("    -i: Process ICMP packets. Default: False [NOT IMPLEMENTED]")
     print("    -a: Process ARP packets. Default: False [NOT IMPLEMENTED]")
     print("")
@@ -61,7 +65,7 @@ def processProtocol(inHosts,inData,inGraph):
     # Process each server application as s
     for dst in list(inData.keys()):
         if DEBUG: print('IP: %s Eth: %s'%(dst,getKeyByVal(inHosts,dst)))
-        s = Node("Host", name=str(dst))
+        s = Node(NODE_NAME, name=str(dst))
         s['ethaddr'] = str(getKeyByVal(inHosts,dst))
         dstSubnet=str(dst).split('.')
         s['subnetA'] = str(dstSubnet[0])
@@ -69,7 +73,7 @@ def processProtocol(inHosts,inData,inGraph):
         s['subnetC'] = str('.'.join([dstSubnet[0],dstSubnet[1],dstSubnet[2]]))
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
-            c = Node("Host",name=str(src))
+            c = Node(NODE_NAME,name=str(src))
             c['ethaddr'] = str(getKeyByVal(inHosts,src))
             srcSubnet=str(dst).split('.')
             c['subnetA'] = str(srcSubnet[0])
@@ -82,7 +86,7 @@ def processProtocol(inHosts,inData,inGraph):
                 else:
                     SENDtcp = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']))
                 # client is the source, so it goes first
-                inGraph.merge(SENDtcp(c, s), "Host", "name")
+                inGraph.merge(SENDtcp(c, s), NODE_NAME, 'name')
 
 # Process ICMP packets
 def processICMP():
@@ -96,7 +100,7 @@ def processARP():
 
 if __name__ == "__main__":
 
-    ops = ['-h','-d','-f', '-p', '-t', '-u', '-i', '-a', '-v']
+    ops = ['-h','-d','-f', '-p', '-t', '-u', '-i', '-a', '-v', '-n', '-c']
     if len(sys.argv) < 2:
         usage()
 
@@ -122,6 +126,10 @@ if __name__ == "__main__":
         if op == '-a':
             ARP = True
             usage() # NOT IMPLEMENTED
+        if op == '-n':
+            NODE_NAME = sys.argv.pop(1)
+        if op == '-c':
+            DISPLAY_FILTER = sys.argv.pop(1)
         if op not in ops:
             usage()
 
@@ -129,9 +137,14 @@ if __name__ == "__main__":
     if not INF:
         usage()
     try:
-        PACKETS = pyshark.FileCapture(INF)
-        # Updated to include vendor names for hardware addresses NOT WORKING
+        # TODO: Updated to include vendor names for hardware addresses NOT WORKING
         #PACKETS = pyshark.FileCapture(INF, use_ek=True, custom_parameters={'-N': 'm'})
+
+        # Apply user defined Display Filter
+        if DISPLAY_FILTER:
+            PACKETS = pyshark.FileCapture(INF, display_filter=DISPLAY_FILTER)
+        else:
+            PACKETS = pyshark.FileCapture(INF)
     except:
         print("%s: Failed to open PCAP file: %s."%(sys.arv[0],INF))
         usage()

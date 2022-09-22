@@ -65,16 +65,18 @@ Match (n) delete n;
 
 ## Help Message
 ```
-./icsPcapViz.py: 0.2.0
+./icsPcapViz.py: 0.4.0
 
-./icsPcapViz.py [-h] [-d] [-n int] [-l int] [-s int] [-m] [-M list] [-e] [-z] [-f <binary file>]
+./icsPcapViz.py -f <capture_file> [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a]
     -h: This is it.
     -v: version info.
     -d: Turn on debugging. Default: off
-    -f <pcap>: pcap file that contains the data. Required
-    -p: <passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.
-    -t: Process TCP packets. Default: True
+    -f <capture_file>: PCAP file that contains the data. Required
+    -p: <neo4j_passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.
+    -t: Do NOT process TCP packets. Default: True
     -u: Process UDP packets. Default: False
+    -n <node_name>: Special node names to identify a subnet. Default: Host
+    -c <display_filter>: Display filter to use search PCAP. Default: None [NOT IMPLEMENTED]
     -i: Process ICMP packets. Default: False [NOT IMPLEMENTED]
     -a: Process ARP packets. Default: False [NOT IMPLEMENTED]
 
@@ -125,6 +127,7 @@ for p in packets:
 ![Identifying protocol layers using iPython and PyShark](./images/ipython_pyshark_protocol_layers.gif)
 
 # TODO
+* Add display filter testing before implementation
 * Add hardware vendor information
 * Colorize nodes to help with display in Neo4j browser
 * Determine if nodes can be automatically organized by Neo4j browser
