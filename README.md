@@ -125,11 +125,13 @@ for p in packets:
 ![Identifying protocol layers using iPython and PyShark](./images/ipython_pyshark_protocol_layers.gif)
 
 # TODO
-* Add property information to the nodes to include data like interface hardware addresses and vendors
+* Add hardware vendor information
 * Colorize nodes to help with display in Neo4j browser
 * Determine if nodes can be automatically organized by Neo4j browser
 * Add ICMP processing
 * Add ARP processing
+* Add IPv6 processing
+* Add Ethernet processing, for Profinet and IEC61850
 
 # Recognition
 
@@ -138,6 +140,7 @@ Thank you to the following people for their help, input, and testing.
 * CutSec Discord
 * Tom Liston
 * John H. Sawyer
+* Vineet Prakash 
 
 # Similar Projects
 * [multiplex3r/loadPcap.py](https://gist.github.com/multiplex3r/a04a8cfc1dcedb2e5553ff7c850c9450) - great starting point using SCAPY
