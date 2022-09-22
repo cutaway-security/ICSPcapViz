@@ -8,7 +8,7 @@ from py2neo import Graph, Node, Relationship
 # Globals
 ####################
 MAJOR_VER  = '0'
-MINOR_VER  = '2.0'
+MINOR_VER  = '3.0'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "==================================="
 DEBUG      = False
@@ -35,7 +35,7 @@ def usage():
     print("    -d: Turn on debugging. Default: off")
     print("    -f <pcap>: pcap file that contains the data. Required")
     print("    -p: <passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.")
-    print("    -t: Process TCP packets. Default: True")
+    print("    -t: Do NOT process TCP packets. Default: True")
     print("    -u: Process UDP packets. Default: False")
     print("    -i: Process ICMP packets. Default: False [NOT IMPLEMENTED]")
     print("    -a: Process ARP packets. Default: False [NOT IMPLEMENTED]")
@@ -56,41 +56,33 @@ def getKeyByVal(d, val):
         return keys[0]
     return None
 
-# Process TCP packets
-def processTCP(inHosts,inData,inGraph):
-    # TCP Process each server application as s
+# Process TCP / UDP packets
+def processProtocol(inHosts,inData,inGraph):
+    # Process each server application as s
     for dst in list(inData.keys()):
         if DEBUG: print('IP: %s Eth: %s'%(dst,getKeyByVal(inHosts,dst)))
         s = Node("Host", name=str(dst))
         s['ethaddr'] = str(getKeyByVal(inHosts,dst))
+        dstSubnet=str(dst).split('.')
+        s['subnetA'] = str(dstSubnet[0])
+        s['subnetB'] = str('.'.join([dstSubnet[0],dstSubnet[1]]))
+        s['subnetC'] = str('.'.join([dstSubnet[0],dstSubnet[1],dstSubnet[2]]))
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
             c = Node("Host",name=str(src))
             c['ethaddr'] = str(getKeyByVal(inHosts,src))
+            srcSubnet=str(dst).split('.')
+            c['subnetA'] = str(srcSubnet[0])
+            c['subnetB'] = str('.'.join([srcSubnet[0],srcSubnet[1]]))
+            c['subnetC'] = str('.'.join([srcSubnet[0],srcSubnet[1],srcSubnet[2]]))    
             for conn in inData[dst][src]:
-                c['vlan']    = str(conn['vlan'])
-                if DEBUG: print('c[dvlan]: %s'%(c['vlan']))
+                c['vlan'] = str(conn['vlan'])
                 if conn['vlan']:
-                    SENDtcp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/TCP/VLAN:" + str(conn['vlan']))
+                    SENDtcp = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']) + "/VLAN:" + str(conn['vlan']))
                 else:
-                    SENDtcp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/TCP")
+                    SENDtcp = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']))
                 # client is the source, so it goes first
                 inGraph.merge(SENDtcp(c, s), "Host", "name")
-
-# Process UDP packets
-def processUDP(inHosts,inData,inGraph):
-    # UDP Process each server application as s
-    for dst in list(inData.keys()):
-        s = Node("Host", name=str(dst))
-        #s['ethaddr'] = getKeyByVal(inHosts,dst)
-        # Process each client talking to an application as c
-        for src in list(inData[dst].keys()):
-            c = Node("Host",name=str(src))
-            #c['ethaddr'] = getKeyByVal(inHosts,src)
-            for conn in inData[dst][src]:
-                SENDudp = Relationship.type(str(conn['proto']) + " " + str(conn['dstport']) + "/UDP")
-                # client is the source, so it goes first
-                inGraph.merge(SENDudp(c, s), "Host", "name")
 
 # Process ICMP packets
 def processICMP():
@@ -138,6 +130,8 @@ if __name__ == "__main__":
         usage()
     try:
         PACKETS = pyshark.FileCapture(INF)
+        # Updated to include vendor names for hardware addresses NOT WORKING
+        #PACKETS = pyshark.FileCapture(INF, use_ek=True, custom_parameters={'-N': 'm'})
     except:
         print("%s: Failed to open PCAP file: %s."%(sys.arv[0],INF))
         usage()
@@ -162,177 +156,115 @@ if __name__ == "__main__":
 
     # Storage variables
     host_addrs = {}
-    udp_conn_dict = {}
-    tcp_conn_dict = {}
+    proto_conn_dict = {}
 
     # Process packets
     for p in PACKETS:
         # New storage for packet source data
-        tcp_src_dict = {}
-        udp_src_dict = {}
+        proto_src_dict = {}
 
-        # Check for TCP layer or continue
-        if 'TCP Layer' in str(p.layers):
-            # Update host_addrs
-            host_keys = list(host_addrs.keys())
-            if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = p.ip.dst
-            if p.eth.src not in host_keys: host_addrs[p.eth.src] = p.ip.src
-            # Prefer ports that are less than 1024 to identify service
-            srvport = 0
-            if str(p.tcp.dstport) in config['TCP']: # could cause false flow direction
-                srvport = p.tcp.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
-            elif str(p.tcp.srcport) in config['TCP']:
-                srvport = p.tcp.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
-            elif int(p.tcp.dstport) < 1024:
-                srvport = p.tcp.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
-            elif int(p.tcp.srcport) < 1024: 
-                srvport = p.tcp.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
-            elif int(p.tcp.dstport) <= int(p.tcp.srcport): # if = then could be false direction
-                srvport = p.tcp.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
-            elif int(p.tcp.srcport) < int(p.tcp.dstport):
-                srvport = p.tcp.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
+        # Check for TCP or UDP layer or continue
+        pProto = ''
+        tProto = ''
+        if 'TCP Layer' in str(p.layers) and TCP:
+            pProto = p.tcp
+            tProto = 'TCP'
+        # UDP Layer test includes avoiding IPv6 packets by checking for IP Layer
+        elif 'UDP Layer' in str(p.layers) and 'IP Layer' in str(p.layers) and UDP: 
+            pProto = p.udp
+            tProto = 'UDP'
+        else:
+            continue
 
-            
-            # If port number selected, find a service name
-            if srvport:
-                if str(srvport) in config['TCP']: 
-                    nameport = config['TCP'][str(srvport)]
-                else:
-                    nameport = p.highest_layer
+        # Update host_addrs
+        host_keys = list(host_addrs.keys())
+        if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = p.ip.dst
+        if p.eth.src not in host_keys: host_addrs[p.eth.src] = p.ip.src
+
+        # Check VLAN tag
+        dvlan = ''
+        vid   = ''
+        vtype = ''
+        if 'VLAN Layer' in str(p.layers):
+            vdata = p['VLAN']
+            if 'id' in list(vdata.field_names): vid = str(vdata.id)
+            if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
+        if vid: 
+            dvlan = vid
+            if vtype: dvlan = dvlan + "/" + vtype
+
+        # Prefer ports that are less than 1024 to identify service
+        srvport = 0
+        if str(pProto.dstport) in config[tProto]: # could cause false flow direction
+            srvport = pProto.dstport
+            srchost = p.ip.src
+            dsthost = p.ip.dst
+            dsteth  = p.eth.dst
+            srceth  = p.eth.src
+        elif str(pProto.srcport) in config[tProto]:
+            srvport = pProto.srcport
+            srchost = p.ip.dst
+            dsthost = p.ip.src
+            dsteth  = p.eth.src
+            srceth  = p.eth.dst
+        elif int(pProto.dstport) < 1024:
+            srvport = pProto.dstport
+            srchost = p.ip.src
+            dsthost = p.ip.dst
+            dsteth  = p.eth.dst
+            srceth  = p.eth.src
+        elif int(pProto.srcport) < 1024: 
+            srvport = pProto.srcport
+            srchost = p.ip.dst
+            dsthost = p.ip.src
+            dsteth  = p.eth.src
+            srceth  = p.eth.dst
+        elif int(pProto.dstport) <= int(pProto.srcport): # if = then could be false direction
+            srvport = pProto.dstport
+            srchost = p.ip.src
+            dsthost = p.ip.dst
+            dsteth  = p.eth.dst
+            srceth  = p.eth.src
+        elif int(pProto.srcport) < int(pProto.dstport):
+            srvport = pProto.srcport
+            srchost = p.ip.dst
+            dsthost = p.ip.src
+            dsteth  = p.eth.src
+            srceth  = p.eth.dst
+
+        # If port number selected, find a service name
+        if srvport:
+            if str(srvport) in config[tProto]: 
+                nameport = config[tProto][str(srvport)]
             else:
-                if DEBUG: print("Packet not selected: %s"%(str(p.layers)))
-                continue
+                nameport = p.highest_layer
+        else:
+            continue
 
-            # Check VLAN tag
-            dvlan = ''
-            vid   = ''
-            vtype = ''
-            if 'VLAN Layer' in str(p.layers):
-                vdata = p['VLAN']
-                if 'id' in list(vdata.field_names): vid = str(vdata.id)
-                if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
-            if vid: 
-                dvlan = vid
-                if vtype: dvlan = dvlan + "/" + vtype
+        # Process packet
+        proto_conn_keys = list(proto_conn_dict.keys())
 
-            # Process packet
-            tcp_conn_keys = list(tcp_conn_dict.keys())
-            # Check for saved conns to destination
-            if srvport not in tcp_conn_keys:
-                tcp_conn_dict[dsthost] = {}
-            src_keys = list(tcp_conn_dict[dsthost].keys())
-            if srchost not in src_keys:
-                tcp_conn_dict[dsthost][srchost] = []
-            # Save source
-            tcp_src_dict = {'dstport':srvport,'proto':nameport,'vlan':dvlan}
-            tcp_conn_dict[dsthost][srchost].append(tcp_src_dict)
+        # Check for saved conns to destination
+        if srvport not in proto_conn_keys:
+            proto_conn_dict[dsthost] = {}
 
-        # Check for UDP layer or continue, check IP later to skip IPv6
-        if 'UDP Layer' in str(p.layers) and 'IP Layer' in str(p.layers):
-            # Update host_addrs
-            host_keys = list(host_addrs.keys())
-            if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = p.ip.dst
-            if p.eth.src not in host_keys: host_addrs[p.eth.src] = p.ip.src
-            # Prefer ports that are less than 1024 to identify service
-            srvport = 0
-            if str(p.udp.dstport) in config['UDP']: # could cause false flow direction
-                srvport = p.udp.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
-            elif str(p.udp.srcport) in config['UDP']:
-                srvport = p.udp.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
-            elif int(p.udp.dstport) < 1024:
-                srvport = p.udp.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
-            elif int(p.udp.srcport) < 1024: 
-                srvport = p.udp.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
-            elif int(p.udp.dstport) <= int(p.udp.srcport): # if = then could be false direction
-                srvport = p.udp.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
-            elif int(p.udp.srcport) < int(p.udp.dstport):
-                srvport = p.udp.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
+        # Process saved services
+        src_keys = list(proto_conn_dict[dsthost].keys())
 
-            # If port number selected, find a service name
-            if srvport:
-                if str(srvport) in config['UDP']: 
-                    nameport = config['UDP'][str(srvport)]
-                else:
-                    nameport = p.highest_layer
-            else:
-                continue
+        if srchost not in src_keys:
+            proto_conn_dict[dsthost][srchost] = []
+        else:
+            # Add VLAN tags, don't stomp
+            if proto_conn_dict[dsthost][srchost]['vlan']:
+                dvlan = ','.join([dvlan,proto_conn_dict[dsthost][srchost]['vlan']])
+        # Save source
+        fullproto = tProto + "/" + nameport
+        proto_src_dict = {'dstport':srvport,'proto':fullproto,'vlan':dvlan}
+        proto_conn_dict[dsthost][srchost].append(proto_src_dict)
 
-            # Check VLAN tag
-            dvlan = ''
-            vid   = ''
-            vtype = ''
-            if 'VLAN Layer' in str(p.layers):
-                vdata = p['VLAN']
-                if 'id' in list(vdata.field_names): vid = str(vdata.id)
-                if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
-            if vid: 
-                dvlan = vid
-                if vtype: dvlan = dvlan + "/" + vtype
-
-            # Process packet
-            udp_conn_keys = list(udp_conn_dict.keys())
-            # Check for saved conns to destination
-            if srvport not in udp_conn_keys:
-                udp_conn_dict[dsthost] = {}
-            src_keys = list(udp_conn_dict[dsthost].keys())
-            if srchost not in src_keys:
-                udp_conn_dict[dsthost][srchost] = []
-            # Save source
-            udp_src_dict = {'dstport':srvport,'proto':nameport,'vlan':dvlan}
-            udp_conn_dict[dsthost][srchost].append(udp_src_dict)
-
-if TCP:
-    processTCP(host_addrs,tcp_conn_dict,NEOGRAPH)
-if UDP:
-    processUDP(host_addrs,udp_conn_dict,NEOGRAPH)
+processProtocol(host_addrs,proto_conn_dict,NEOGRAPH)
+#if UDP:
+    #processProtocol(host_addrs,udp_conn_dict,NEOGRAPH,'UDP')
 if ICMP:
     processICMP()
 if ARP:
