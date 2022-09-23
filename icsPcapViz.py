@@ -8,13 +8,15 @@ from py2neo import Graph, Node, Relationship
 # Globals
 ####################
 MAJOR_VER  = '0'
-MINOR_VER  = '4.0'
+MINOR_VER  = '5.0'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "==================================="
 DEBUG      = False
 INF        = False
 SERV1      = './ieee_services.ini'
 SERV2      = './ics_services.ini'
+VENDOR_MAC = './wireshark_manuf_reference.txt'
+VMAC       = False
 PACKETS    = False
 NEOGRAPH   = False
 TCP        = True 
@@ -31,7 +33,7 @@ DISPLAY_FILTER = None
 def usage():
     print("%s: %s"%(sys.argv[0],VERSION))
     print("")
-    print("%s -f <capture_file> [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a]"%(sys.argv[0]))
+    print("%s -f <capture_file> [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a] [-m]"%(sys.argv[0]))
     print("    -h: This is it.")
     print("    -v: version info.")
     print("    -d: Turn on debugging. Default: off")
@@ -54,19 +56,22 @@ def version():
     print("%s: %s"%(sys.argv[0],VERSION))
     sys.exit()
 
-def getKeyByVal(d, val):
-    keys = [k for k, v in d.items() if v == val]
-    if keys:
-        return keys[0]
-    return None
+def getKeyByVal(data, val):
+    # Expect IP and vendor informarion in data
+    keys = data.keys()
+    for k in keys:
+        if data[k][0] == val:
+            if DEBUG: print('DK: %s'%(data[k]))
+            return [str(data[k][0]),str(data[k][1])]
+    return '',''
 
 # Process TCP / UDP packets
 def processProtocol(inHosts,inData,inGraph):
     # Process each server application as s
     for dst in list(inData.keys()):
-        if DEBUG: print('IP: %s Eth: %s'%(dst,getKeyByVal(inHosts,dst)))
+        if DEBUG: print('IP: %s Eth: %s Vendor: %s'%(dst,getKeyByVal(inHosts,dst)))
         s = Node(NODE_NAME, name=str(dst))
-        s['ethaddr'] = str(getKeyByVal(inHosts,dst))
+        s['ethaddr'],s['vendor'] = getKeyByVal(inHosts,dst)
         dstSubnet=str(dst).split('.')
         s['subnetA'] = str(dstSubnet[0])
         s['subnetB'] = str('.'.join([dstSubnet[0],dstSubnet[1]]))
@@ -74,7 +79,7 @@ def processProtocol(inHosts,inData,inGraph):
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
             c = Node(NODE_NAME,name=str(src))
-            c['ethaddr'] = str(getKeyByVal(inHosts,src))
+            c['ethaddr'],c['vendor'] = getKeyByVal(inHosts,src)
             srcSubnet=str(dst).split('.')
             c['subnetA'] = str(srcSubnet[0])
             c['subnetB'] = str('.'.join([srcSubnet[0],srcSubnet[1]]))
@@ -160,6 +165,14 @@ if __name__ == "__main__":
     except:
         print("%s: Failed to open services configuration file: %s."%(sys.arv[0],SERV2))
 
+    # Vendor MAC Information
+    vdict = {}
+    VMAC = open(VENDOR_MAC,'r').readlines()
+    for l in VMAC:
+        l = l.replace('\t',' ').rstrip()
+        if l == '' or l[0] == '#': continue
+        vdict[l.split(' ')[0]] = ' '.join(l.split(' ')[1:])
+
     # Connect to Neo4J Database
     try:
         NEOGRAPH = Graph(password=NEO_PASSWD)
@@ -191,8 +204,12 @@ if __name__ == "__main__":
 
         # Update host_addrs
         host_keys = list(host_addrs.keys())
-        if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = p.ip.dst
-        if p.eth.src not in host_keys: host_addrs[p.eth.src] = p.ip.src
+        vdict_keys = list(vdict.keys())
+        vdst, vsrc = '',''
+        if p.eth.dst[0:8].upper() in vdict_keys: vdst = vdict[p.eth.dst[0:8].upper()]
+        if p.eth.src[0:8].upper() in vdict_keys: vsrc = vdict[p.eth.src[0:8].upper()]
+        if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = [p.ip.dst, vdst]
+        if p.eth.src not in host_keys: host_addrs[p.eth.src] = [p.ip.src, vsrc]
 
         # Check VLAN tag
         dvlan = ''
