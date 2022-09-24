@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-import os,sys,re
+import os,sys,re,datetime
 import configparser
+import json
 import pyshark
 from py2neo import Graph, Node, Relationship
 
@@ -8,7 +9,7 @@ from py2neo import Graph, Node, Relationship
 # Globals
 ####################
 MAJOR_VER  = '0'
-MINOR_VER  = '5.0'
+MINOR_VER  = '6.0'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "==================================="
 DEBUG      = False
@@ -16,6 +17,7 @@ INF        = False
 SERV1      = './ieee_services.ini'
 SERV2      = './ics_services.ini'
 VENDOR_MAC = './wireshark_manuf_reference.txt'
+JSON_DIR   = ''
 VMAC       = False
 PACKETS    = False
 NEOGRAPH   = False
@@ -26,6 +28,7 @@ ARP        = False
 NEO_PASSWD = 'admin'
 NODE_NAME  = 'Host'
 DISPLAY_FILTER = None
+NOW = datetime.datetime.now().strftime("%Y%m%d%H%M")
 
 ####################
 # FUNCTIONS
@@ -33,11 +36,12 @@ DISPLAY_FILTER = None
 def usage():
     print("%s: %s"%(sys.argv[0],VERSION))
     print("")
-    print("%s -f <capture_file> [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a] [-m]"%(sys.argv[0]))
+    print("%s -f <capture_file> [-j <json_directory>] [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a] [-m]"%(sys.argv[0]))
     print("    -h: This is it.")
     print("    -v: version info.")
     print("    -d: Turn on debugging. Default: off")
     print("    -f <capture_file>: PCAP file that contains the data. Required")
+    print("    -j <json_directory>: Send output to file in JSON format into the uer provided directory.")
     print("    -p: <neo4j_passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.")
     print("    -t: Do NOT process TCP packets. Default: True")
     print("    -u: Process UDP packets. Default: False")
@@ -76,6 +80,7 @@ def processProtocol(inHosts,inData,inGraph):
         s['subnetA'] = str(dstSubnet[0])
         s['subnetB'] = str('.'.join([dstSubnet[0],dstSubnet[1]]))
         s['subnetC'] = str('.'.join([dstSubnet[0],dstSubnet[1],dstSubnet[2]]))
+        s['vlan'] = ''
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
             c = Node(NODE_NAME,name=str(src))
@@ -86,6 +91,7 @@ def processProtocol(inHosts,inData,inGraph):
             c['subnetC'] = str('.'.join([srcSubnet[0],srcSubnet[1],srcSubnet[2]]))    
             for conn in inData[dst][src]:
                 c['vlan'] = str(conn['vlan'])
+                if not s['vlan']: s['vlan'] = str(conn['vlan'])
                 if conn['vlan']:
                     SENDtcp = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']) + "/VLAN:" + str(conn['vlan']))
                 else:
@@ -103,9 +109,13 @@ def processARP():
     print("%s: ARP is not implemented.")
     usage() # NOT IMPLEMENTED
 
+####################
+# MAIN PROCESSING
+####################
 if __name__ == "__main__":
 
-    ops = ['-h','-d','-f', '-p', '-t', '-u', '-i', '-a', '-v', '-n', '-c']
+    # User Options
+    ops = ['-h','-d','-f', '-j', '-p', '-t', '-u', '-i', '-a', '-v', '-n', '-c']
     if len(sys.argv) < 2:
         usage()
 
@@ -119,8 +129,10 @@ if __name__ == "__main__":
             DEBUG = True
         if op == '-f':
             INF = sys.argv.pop(1)
+        if op == '-j':
+            JSON_DIR = sys.argv.pop(1)
         if op == '-p':
-            INF = sys.argv.pop(1)
+            NEO_PASSWD = sys.argv.pop(1)
         if op == '-t':
             TCP = False
         if op == '-u':
@@ -142,9 +154,6 @@ if __name__ == "__main__":
     if not INF:
         usage()
     try:
-        # TODO: Updated to include vendor names for hardware addresses NOT WORKING
-        #PACKETS = pyshark.FileCapture(INF, use_ek=True, custom_parameters={'-N': 'm'})
-
         # Apply user defined Display Filter
         if DISPLAY_FILTER:
             PACKETS = pyshark.FileCapture(INF, display_filter=DISPLAY_FILTER)
@@ -172,13 +181,6 @@ if __name__ == "__main__":
         l = l.replace('\t',' ').rstrip()
         if l == '' or l[0] == '#': continue
         vdict[l.split(' ')[0]] = ' '.join(l.split(' ')[1:])
-
-    # Connect to Neo4J Database
-    try:
-        NEOGRAPH = Graph(password=NEO_PASSWD)
-    except:
-        print("%s: Failed to connect to Neo4J database."%(sys.arv[0]))
-        usage()
 
     # Storage variables
     host_addrs = {}
@@ -292,10 +294,37 @@ if __name__ == "__main__":
         proto_src_dict = {'dstport':srvport,'proto':fullproto,'vlan':dvlan}
         proto_conn_dict[dsthost][srchost].append(proto_src_dict)
 
-processProtocol(host_addrs,proto_conn_dict,NEOGRAPH)
-#if UDP:
-    #processProtocol(host_addrs,udp_conn_dict,NEOGRAPH,'UDP')
-if ICMP:
-    processICMP()
-if ARP:
-    processARP()
+    # Output JSON data to selected location
+    if os.path.exists(JSON_DIR):
+        # Output connections to JSON
+        CONN_JSON = JSON_DIR + '/' + INF.split('/')[-1].split('.')[0] + '_connections_' + NOW + '.json'
+        try:
+            JCONNS = open(CONN_JSON,'w')   
+            jconn_object = json.dumps(proto_conn_dict, indent = 4) 
+            JCONNS.write(jconn_object)
+            JCONNS.close()
+        except:
+            print("%s: Failed to open JSON file, %s."%(sys.argv[0],CONN_JSON))
+        # Output hosts to JSON
+        HOST_JSON = JSON_DIR + '/' + INF.split('/')[-1].split('.')[0] + '_hosts_' + NOW + '.json'
+        try:
+            JHOSTS = open(HOST_JSON,'w')   
+            jhost_object = json.dumps(host_addrs, indent = 4) 
+            JHOSTS.write(jhost_object)
+            JHOSTS.close()
+        except:
+            print("%s: Failed to open JSON file, %s."%(sys.argv[0],HOST_JSON))
+
+    # Connect to Neo4J Database
+    try:
+        NEOGRAPH = Graph(password=NEO_PASSWD)
+    except:
+        print("%s: Failed to connect to Neo4J database."%(sys.argv[0]))
+        usage()
+
+    processProtocol(host_addrs,proto_conn_dict,NEOGRAPH)
+    
+    if ICMP:
+        processICMP()
+    if ARP:
+        processARP()
