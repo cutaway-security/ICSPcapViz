@@ -9,7 +9,7 @@ from py2neo import Graph, Node, Relationship
 # Globals
 ####################
 MAJOR_VER  = '0'
-MINOR_VER  = '6.0'
+MINOR_VER  = '7.0'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "==================================="
 DEBUG      = False
