@@ -1,2 +1,4 @@
 pyshark
 py2neo
+numpy
+scipy
