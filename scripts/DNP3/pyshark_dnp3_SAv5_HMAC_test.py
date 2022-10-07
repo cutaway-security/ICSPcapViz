@@ -65,21 +65,28 @@ def dnp_data(data):
     # Return combined chunk data
     return results
 
+###################
+# Main Processing
+###################
+
 # User defined PCAP file
 inf = sys.argv[1]
 # Check if user provided external word list
 if len(sys.argv) > 2:              
     wnf = sys.argv[2]
-    wlist   = open(wnf,'r').readlines()          
+    wlist   = open(wnf,'r').readlines()
+
+# Get Packets      
 packets = pyshark.FileCapture(inf)  
 
-# Extract Challenge and Response
+# Parse Packets
 dnp3_sav5 = {}
 unit_id    = ''
 app_ctl    = ''
 dnp3_chall = ''
 dnp3_resp  = ''
 for p in packets:
+    # Only process DNP3 packets
     if 'DNP3' == p.highest_layer:
         # Test of Auth Response
         if int(p.dnp3.al_func) == 0x83:
@@ -135,12 +142,12 @@ for uid in unitkeys:
                 w = w.strip()
                 # Hash the wordlist value or just use it
                 if WHASH: 
-                    #test_val = hashlib.md5(w.encode('utf8'))
                     test_val = HASH(w.encode('utf8')).digest()
                 else:
+                    # Just use the plain string
                     test_val = w.encode('utf8')
                 hmac_value = hmac.new( test_val, chall.encode('utf8'), HASH )
-                #print( h.hexdigest() )
+                # Test the HMAC and the Response value, stop processing on first success
                 if hmac_value.hexdigest() == dnp3_sav5[uid][chall].encode('utf8'): 
                     print("%s:%s against %s:%s"%('SUCCESS',w,chall,dnp3_sav5[uid][chall]))
                     break

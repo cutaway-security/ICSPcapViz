@@ -126,6 +126,14 @@ for p in packets:
 
 ![Identifying protocol layers using iPython and PyShark](./images/ipython_pyshark_protocol_layers.gif)
 
+# Scripts
+
+The scripts directory contains a number of Python script that use PyShark to process the PCAP and obtain useful information.
+
+* DNP3 - process DNP3 communications
+* Credentials - analyze traffic for credentials
+* Inventory - generate asset lists from host and communication data
+
 # TODO
 * Add display filter testing before implementation
 * Add hardware vendor information
