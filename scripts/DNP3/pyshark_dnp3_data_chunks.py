@@ -48,7 +48,8 @@ def dnp_data(data):
     # Return combined chunk data
     return results
 
-# Process packets and produce a CSV output to assist with data chunk analysis.                               
+# Process packets and produce a CSV output to assist with data chunk analysis.   
+# TODO: Pull out HMAC challenge / response bytes.                            
 for p in packets: 
     dnp3_csv_header = "Frame Number,Transport Control,App Layer Code,Function Code,Direction,Combined Data Chunks"
     # Only process DNP3 packets
