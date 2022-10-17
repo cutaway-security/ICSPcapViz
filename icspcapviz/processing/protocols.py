@@ -2,7 +2,7 @@ import crcmod.predefined
 import hmac
 import hashlib
 from alive_progress import alive_bar
-from .data.vendor_wordlist import vendor_wordlist
+from data.vendor_wordlist import *
 
 ###################
 # Globals
