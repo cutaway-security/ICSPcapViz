@@ -5,35 +5,68 @@ Visualization of network communications provides with the development and review
 
 IMPORTANT NOTE: You will need to learn how to use Neo4j to manually process this information. Populating the database is only the first step. There is more work once the script has completed. Don't be scared.
 
+This project also provides the ability to process PCAP files for valuable information about the communications between hosts. The `icspcaplists.py` script allows the user to review the network traffic for specific types of data that will generate inventory lists, protocol identifiers, and extracting authentication credentials.
+
 # Usage
-## Processing Examples
-### Graph TCP traffic only
+## Visualization Processing Examples
+### Help Message
+```
+(venv) ┌──CUTSEC - 22-10-18 0:20:06
+└─$ python icspcapviz.py -h
+usage: icspcapviz.py [-h] [-d] [-v] [-f [PCAP]] [-j [JSONDIR]] [-p ADMIN] [-t] [-u] [-a] [-i] [-n [NODENAME]] [-F [DISPLAY_FILTER]]
+
+Analyze network packet captures and map hosts.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d, --debug           Print debugging statements
+  -v, --version         Print version
+  -f [PCAP], --file [PCAP]
+                        Path to network packet capture file
+  -j [JSONDIR], --json [JSONDIR]
+                        Path to directory to write JSON files
+  -p ADMIN, --neopasswd ADMIN
+                        Password for Neo4J database (Default: admin)
+  -t, --tcp             Disable processing TCP packets
+  -u, --udp             Disable processing UDP packets
+  -a, --arp             Disable processing ARP packets
+  -i, --icmp            Disable processing ICMP packets
+  -n [NODENAME], --nodename [NODENAME]
+                        Names for nodes in Neo4j (Default: Host)
+  -F [DISPLAY_FILTER], --filter [DISPLAY_FILTER]
+                        Wireshark / Tshark display filter
+```
+
+## Graph TCP traffic only
 ```
 ┌──CUTSEC - 22-09-09 17:54:20
 └─$ ./icsPcapViz.py -f ./Plant1.pcap
 ```
-### Graph TCP and UDP traffic
+
+## Graph TCP and UDP traffic
 ```
 ┌──CUTSEC - 22-09-09 17:56:40
 └─$ ./icsPcapViz.py -f ./Plant1.pcap -u
 ```
 
-### Graph UDP traffic only
+## Graph UDP traffic only
 ```
 ┌──CUTSEC - 22-09-09 17:59:23
 └─$ ./icsPcapViz.py -f ./Plant1.pcap -t -u
 ```
+
+## Neo4j Usage
 ### Neo4j Bloom Graph
 ![Plant1 Modbus and CIP Nodes](./images/plant1_modbus_cip.png)
 
 **NOTE: These nodes were manually organized.**
 
-## Install and Review Neo4j documentation
+### Install and Review Neo4j documentation
 * Install Neo4j: https://neo4j.com/docs/operations-manual/current/installation/
 * Neo4j Quick Start: https://neo4j.com/developer/get-started/
 * Neo4j Bloom Quick Start: https://neo4j.com/docs/bloom-user-guide/current/bloom-quick-start/
 
-## Start a Neo4j Project and Database
+### Start a Neo4j Project and Database
 * Stop any running databases.
 * Create a new project and name the project 'ICSPcapViz' or something related to your task.
 * Add a new database and name it 'ICSPcapViz' or something related to your task.
@@ -63,37 +96,8 @@ Match (n) delete n;
 
 ![Neo4j Check and Clean Database](./images/neo4j_check_db_clean_db.png)
 
-## Help Message
-### ICS PCAP Visualization
-The ICS PCAP Visualization script will analyze a network packet capture file and generate a Neo4j graphic network diagram.
-```
-(venv) ┌──CUTSEC - 22-10-18 0:20:06
-└─$ python icspcapviz.py -h
-usage: icspcapviz.py [-h] [-d] [-v] [-f [PCAP]] [-j [JSONDIR]] [-p ADMIN] [-t] [-u] [-a] [-i] [-n [NODENAME]] [-F [DISPLAY_FILTER]]
-
-Analyze network packet captures and map hosts.
-
-optional arguments:
-  -h, --help            show this help message and exit
-  -d, --debug           Print debugging statements
-  -v, --version         Print version
-  -f [PCAP], --file [PCAP]
-                        Path to network packet capture file
-  -j [JSONDIR], --json [JSONDIR]
-                        Path to directory to write JSON files
-  -p ADMIN, --neopasswd ADMIN
-                        Password for Neo4J database (Default: admin)
-  -t, --tcp             Disable processing TCP packets
-  -u, --udp             Disable processing UDP packets
-  -a, --arp             Disable processing ARP packets
-  -i, --icmp            Disable processing ICMP packets
-  -n [NODENAME], --nodename [NODENAME]
-                        Names for nodes in Neo4j (Default: Host)
-  -F [DISPLAY_FILTER], --filter [DISPLAY_FILTER]
-                        Wireshark / Tshark display filter
-```
-
-### ICS PCAP Lists
+## Inventory Processing Examples
+### Help Message
 The ICS PCAP List script will analyze a network packet capture file and generate different lists based on protocols, credentials, and inventory.
 ```
 (venv) ┌──CUTSEC - 22-10-18 0:23:18
@@ -176,14 +180,11 @@ The scripts directory contains a number of Python script that use PyShark to pro
 * Inventory - generate asset lists from host and communication data
 
 # TODO
-* Add display filter testing before implementation
-* Add hardware vendor information
-* Colorize nodes to help with display in Neo4j browser
-* Determine if nodes can be automatically organized by Neo4j browser
-* Add ICMP processing
-* Add ARP processing
-* Add IPv6 processing
-* Add Ethernet processing, for Profinet and IEC61850
+* Move DNP3 SAv5 to credentials.
+* Fix processing unknown data to show raw bytes and entropy.
+* Add hardware vendor information to inventory scripts.
+* Add ICMP, ARP, IPv6 processing.
+* Add Ethernet processing, for Profinet and IEC61850.
 
 # Recognition
 
