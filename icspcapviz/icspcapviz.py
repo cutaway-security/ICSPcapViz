@@ -41,7 +41,7 @@ if __name__ == "__main__":
     parser.add_argument('-a','--arp', action='store_true', help='Disable processing ARP packets')
     parser.add_argument('-i','--icmp', action='store_true', help='Disable processing ICMP packets')
     parser.add_argument('-n','--nodename', dest='nodename', nargs='?', default='Host', metavar='NODENAME', help='Names for nodes in Neo4j (Default: Host)')
-    parser.add_argument('-c','--filter', dest='displayfilter', nargs='?', default='', metavar='DISPLAY_FILTER', help='Wireshark / Tshark display filter')
+    parser.add_argument('-F','--filter', dest='displayfilter', nargs='?', default='', metavar='DISPLAY_FILTER', help='Wireshark / Tshark display filter')
 
     # Object for user arguments
     args = parser.parse_args()

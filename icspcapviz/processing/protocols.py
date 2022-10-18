@@ -2,7 +2,7 @@ import crcmod.predefined
 import hmac
 import hashlib
 from alive_progress import alive_bar
-from data.vendor_wordlist import *
+from data.dataObjects import *
 
 ###################
 # Globals
@@ -52,15 +52,15 @@ def get_dnp3_data(inData):
     # Return combined chunk data
     return results
 
-def print_ndp3_data_chunks(inPackets):
+def print_dnp3_data_chunks(inPackets):
     """
     Analyze a pyshark.capture.file_capture.FileCapture object for DNP3 data.
     Return DNP3 data in CSV formatted output to STDOUT
     """
     # Process packets and produce a CSV output to assist with data chunk analysis.   
-    # TODO: Pull out HMAC challenge / response bytes.                            
+    dnp3_csv_header = "Frame Number,Transport Control,App Layer Code,Function Code,Direction,Combined Data Chunks"
+    print("%s"%(dnp3_csv_header))
     for p in inPackets: 
-        dnp3_csv_header = "Frame Number,Transport Control,App Layer Code,Function Code,Direction,Combined Data Chunks"
         # Only process DNP3 packets
         if 'DNP3' == p.highest_layer: 
             print("%s,%s,%s,%s,%s->%s,%s"%( 
@@ -73,10 +73,9 @@ def print_ndp3_data_chunks(inPackets):
                 )
             )
 
-def get_dnp3_sav5_hmac(inPackets):
+def get_dnp3_sav5_hmac(inPackets,wlist):
     """
-    Process DNP3 packets, review for Challenge / Responses.
-    Print results in PWDUMP format.
+    Process DNP3 packets, review for Challenge / Responses, and test HMACs against a word list.
     """
     # Parse Packets
     dnp3_sav5 = {}
@@ -125,7 +124,7 @@ def get_dnp3_sav5_hmac(inPackets):
     # Process each unit by unit_id
     unitkeys = list(dnp3_sav5.keys())
     for uid in unitkeys:
-        print("Processing unit %s challenge/responses against %s test keys"%(uid,len(vendor_wordlist)))
+        print("Processing unit %s challenge/responses against %s test keys"%(uid,len(wlist)))
         # Process each unit's challenge and response
         wlkeys = list(dnp3_sav5[uid].keys())
         for chall in wlkeys:
@@ -133,8 +132,8 @@ def get_dnp3_sav5_hmac(inPackets):
             if not dnp3_sav5[uid][chall]: continue
             print("Testing %s:%s"%(chall,dnp3_sav5[uid][chall]))
             # Show progress with alive_bar, somehow it monitors the for loop processing the wordlist
-            with alive_bar(len(vendor_wordlist)) as bar:
-                for w in vendor_wordlist:
+            with alive_bar(len(wlist)) as bar:
+                for w in wlist:
                     # Get rid of newline in case value comes from file
                     w = w.strip()
                     # Hash the wordlist value or just use it

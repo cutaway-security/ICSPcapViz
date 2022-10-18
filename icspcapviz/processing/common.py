@@ -4,11 +4,10 @@ import json
 import pyshark
 from py2neo import Graph, Node, Relationship
 
-
 MAJOR_VER  = '1'
 MINOR_VER  = '1.0'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
-SEPERATOR  = "==================================="
+SEPERATOR  = "##############################"
 
 ##################
 # Utility Functions
@@ -35,12 +34,21 @@ def get_packets(inFile,inFilter=''):
     """
     Read a PCAP file and return a pyshark.capture.file_capture.FileCapture object
     """
-
     if inFilter: 
         return pyshark.FileCapture(inFile, display_filter=inFilter) 
     else:   
         return pyshark.FileCapture(inFile)
 
+# Get lines from a file
+def get_file(inFile):
+    """
+    Read a file and return list after removing newlines and spaces.
+    Does not catch exceptions. 
+    """
+    lines = open(inFile,'r').readlines()
+    for e in range(len(lines)):
+        lines[e] = lines[e].strip()
+    return lines
 
 # Process TCP / UDP packets
 def process_protocols(inHosts,inData,inGraph,inNodeName):
@@ -82,6 +90,14 @@ def process_arp():
 ##################
 # Printing Functions
 ##################
+def print_dictionary_list(inDict):
+    """
+    Print interface information
+    TODO: Update to include vendor names
+    """
+    for e in inDict.keys(): 
+        if inDict[e]: 
+            print("%s: %s"%(e,','.join(inDict[e]))) 
 
 def print_json(inJson,inFile,inProtos,inHosts):
 
