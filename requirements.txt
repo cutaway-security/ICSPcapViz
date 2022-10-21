@@ -1,2 +1,6 @@
+argparse
 pyshark
 py2neo
+numpy
+scipy
+alive_progress

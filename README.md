@@ -5,35 +5,68 @@ Visualization of network communications provides with the development and review
 
 IMPORTANT NOTE: You will need to learn how to use Neo4j to manually process this information. Populating the database is only the first step. There is more work once the script has completed. Don't be scared.
 
+This project also provides the ability to process PCAP files for valuable information about the communications between hosts. The `icspcaplists.py` script allows the user to review the network traffic for specific types of data that will generate inventory lists, protocol identifiers, and extracting authentication credentials.
+
 # Usage
-## Processing Examples
-### Graph TCP traffic only
+## Visualization Processing Examples
+### Help Message
+```
+(venv) ┌──CUTSEC - 22-10-18 0:20:06
+└─$ python icspcapviz.py -h
+usage: icspcapviz.py [-h] [-d] [-v] [-f [PCAP]] [-j [JSONDIR]] [-p ADMIN] [-t] [-u] [-a] [-i] [-n [NODENAME]] [-F [DISPLAY_FILTER]]
+
+Analyze network packet captures and map hosts.
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -d, --debug           Print debugging statements
+  -v, --version         Print version
+  -f [PCAP], --file [PCAP]
+                        Path to network packet capture file
+  -j [JSONDIR], --json [JSONDIR]
+                        Path to directory to write JSON files
+  -p ADMIN, --neopasswd ADMIN
+                        Password for Neo4J database (Default: admin)
+  -t, --tcp             Disable processing TCP packets
+  -u, --udp             Disable processing UDP packets
+  -a, --arp             Disable processing ARP packets
+  -i, --icmp            Disable processing ICMP packets
+  -n [NODENAME], --nodename [NODENAME]
+                        Names for nodes in Neo4j (Default: Host)
+  -F [DISPLAY_FILTER], --filter [DISPLAY_FILTER]
+                        Wireshark / Tshark display filter
+```
+
+## Graph TCP traffic only
 ```
 ┌──CUTSEC - 22-09-09 17:54:20
 └─$ ./icsPcapViz.py -f ./Plant1.pcap
 ```
-### Graph TCP and UDP traffic
+
+## Graph TCP and UDP traffic
 ```
 ┌──CUTSEC - 22-09-09 17:56:40
 └─$ ./icsPcapViz.py -f ./Plant1.pcap -u
 ```
 
-### Graph UDP traffic only
+## Graph UDP traffic only
 ```
 ┌──CUTSEC - 22-09-09 17:59:23
 └─$ ./icsPcapViz.py -f ./Plant1.pcap -t -u
 ```
+
+## Neo4j Usage
 ### Neo4j Bloom Graph
 ![Plant1 Modbus and CIP Nodes](./images/plant1_modbus_cip.png)
 
 **NOTE: These nodes were manually organized.**
 
-## Install and Review Neo4j documentation
+### Install and Review Neo4j documentation
 * Install Neo4j: https://neo4j.com/docs/operations-manual/current/installation/
 * Neo4j Quick Start: https://neo4j.com/developer/get-started/
 * Neo4j Bloom Quick Start: https://neo4j.com/docs/bloom-user-guide/current/bloom-quick-start/
 
-## Start a Neo4j Project and Database
+### Start a Neo4j Project and Database
 * Stop any running databases.
 * Create a new project and name the project 'ICSPcapViz' or something related to your task.
 * Add a new database and name it 'ICSPcapViz' or something related to your task.
@@ -63,27 +96,39 @@ Match (n) delete n;
 
 ![Neo4j Check and Clean Database](./images/neo4j_check_db_clean_db.png)
 
-## Help Message
+## Inventory Processing Examples
+### Help Message
+The ICS PCAP List script will analyze a network packet capture file and generate different lists based on protocols, credentials, and inventory.
 ```
-./icsPcapViz.py: 0.4.0
+(venv) ┌──CUTSEC - 22-10-18 0:23:18
+└─$ python icspcaplists.py -h
+usage: icspcaplists.py [-h] [-d] [-v] -f [PCAP] [-w [WORDLIST]] [-F [DISPLAY_FILTER]] [-c [{all,ntlm,http,kerberos}]] [-p [{all,dnp3data,dnp3sav5}]]
+                       [-i [{all,protocols,hardware,services,raw,entropy}]]
 
-./icsPcapViz.py -f <capture_file> [-h] [-v] [-d] [-p <neo4j_passwd>] [-t] [-u] [-n <node_name>] [-c <display_filter>] [-i] [-a]
-    -h: This is it.
-    -v: version info.
-    -d: Turn on debugging. Default: off
-    -f <capture_file>: PCAP file that contains the data. Required
-    -p: <neo4j_passwd>: Neo4J password Default: admin. Yes, this will be in your shell history.
-    -t: Do NOT process TCP packets. Default: True
-    -u: Process UDP packets. Default: False
-    -n <node_name>: Special node names to identify a subnet. Default: Host
-    -c <display_filter>: Display filter to use search PCAP. Default: None [NOT IMPLEMENTED]
-    -i: Process ICMP packets. Default: False [NOT IMPLEMENTED]
-    -a: Process ARP packets. Default: False [NOT IMPLEMENTED]
+Analyze network packet captures and map hosts.
 
-Be sure to start your Neo4J database. Read README for guidance.
-
-Processing PCAPs can take time. Be patient.
-Yes, you can write a progress bar and submit a pull request.
+optional arguments:
+  -h, --help            show this help message and exit
+  -d, --debug           Print debugging statements
+  -v, --version         Print version
+  -f [PCAP], --file [PCAP]
+                        Path to network packet capture file
+  -w [WORDLIST], --wordlist [WORDLIST]
+                        Path to file with list of words for passwords
+  -F [DISPLAY_FILTER], --filter [DISPLAY_FILTER]
+                        Wireshark / Tshark display filter
+  -c [{all,ntlm,http,kerberos}], --creds [{all,ntlm,http,kerberos}]
+                        Locate and print output for credentials. Choices: 'all': Default, run all modules. 'ntlm': process ntlmssp module. 'http':
+                        process HTTP Basic Auth module. 'kerberos': process kerberos module.
+  -p [{all,dnp3data,dnp3sav5}], --protos [{all,dnp3data,dnp3sav5}]
+                        Locate and print output for ICS protocols. Choices: 'all': Default, process all ICS protocol modules. 'dnp3data': process
+                        DNP3 data module to show data chunks. 'dnp3sav5': process DNP3 SAv5 module to list Secure Authentication version 5 challenge
+                        and response in PWDump format.
+  -i [{all,protocols,hardware,services,raw,entropy}], --inventory [{all,protocols,hardware,services,raw,entropy}]
+                        Locate and print output for ICS protocols. Choices: 'all': Default, process all inventory modules. 'protocols': list all
+                        protocols. 'hardware': list all hardware addresses and IP addresses. 'services': list all services with IP addresses. 'raw':
+                        show raw bytes for packets with unknown data. 'entropy': show entropy values for packets with unknown data to detect
+                        encryption or compression.
 ```
 
 # Getting Started
@@ -126,15 +171,20 @@ for p in packets:
 
 ![Identifying protocol layers using iPython and PyShark](./images/ipython_pyshark_protocol_layers.gif)
 
+# Scripts
+
+The scripts directory contains a number of Python script that use PyShark to process the PCAP and obtain useful information.
+
+* DNP3 - process DNP3 communications
+* Credentials - analyze traffic for credentials
+* Inventory - generate asset lists from host and communication data
+
 # TODO
-* Add display filter testing before implementation
-* Add hardware vendor information
-* Colorize nodes to help with display in Neo4j browser
-* Determine if nodes can be automatically organized by Neo4j browser
-* Add ICMP processing
-* Add ARP processing
-* Add IPv6 processing
-* Add Ethernet processing, for Profinet and IEC61850
+* Move DNP3 SAv5 to credentials.
+* Fix processing unknown data to show raw bytes and entropy.
+* Add hardware vendor information to inventory scripts.
+* Add ICMP, ARP, IPv6 processing.
+* Add Ethernet processing, for Profinet and IEC61850.
 
 # Recognition
 
