@@ -2,9 +2,9 @@
 import os,sys
 import argparse
 from py2neo import Graph, Node, Relationship
-#import pyshark
 from processing.common import * 
 from data.dataObjects import *
+from alive_progress import alive_bar
 
 ####################
 # Globals
@@ -76,121 +76,125 @@ if __name__ == "__main__":
     proto_conn_dict = {}
 
     # Process packets
-    for p in PACKETS:
-        # New storage for packet source data
-        proto_src_dict = {}
+    with alive_bar(len(PACKETS)) as bar:
+        # Double time from alive_bar stats to get actual processing time, packets processed twice
+        for p in PACKETS:
+            # New storage for packet source data
+            proto_src_dict = {}
 
-        # Check for TCP or UDP layer or continue
-        pProto = ''
-        tProto = ''
-        if 'TCP Layer' in str(p.layers) and args.tcp:
-            pProto = p.tcp
-            tProto = 'TCP'
-        # UDP Layer test includes avoiding IPv6 packets by checking for IP Layer
-        elif 'UDP Layer' in str(p.layers) and 'IP Layer' in str(p.layers) and args.udp: 
-            pProto = p.udp
-            tProto = 'UDP'
-        else:
-            continue
-
-        # Update host_addrs
-        host_keys  = list(host_addrs.keys())
-        vdict_keys = list(vdict.keys())
-        vdst, vsrc = '',''
-        if p.eth.dst[0:8].upper() in vdict_keys: vdst = vdict[p.eth.dst[0:8].upper()]
-        if p.eth.src[0:8].upper() in vdict_keys: vsrc = vdict[p.eth.src[0:8].upper()]
-        if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = [p.ip.dst, vdst]
-        if p.eth.src not in host_keys: host_addrs[p.eth.src] = [p.ip.src, vsrc]
-
-        # Check VLAN tag
-        dvlan = ''
-        vid   = ''
-        vtype = ''
-        if 'VLAN Layer' in str(p.layers):
-            vdata = p['VLAN']
-            if 'id' in list(vdata.field_names): vid = str(vdata.id)
-            if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
-        if vid: 
-            dvlan = vid
-            if vtype: dvlan = dvlan + "/" + vtype
-
-        # Prefer ports that are less than 1024 to identify service
-        srvport = 0
-        if str(pProto.dstport) in config[tProto]: # could cause false flow direction
-            srvport = pProto.dstport
-            srchost = p.ip.src
-            dsthost = p.ip.dst
-            dsteth  = p.eth.dst
-            srceth  = p.eth.src
-        elif str(pProto.srcport) in config[tProto]:
-            srvport = pProto.srcport
-            srchost = p.ip.dst
-            dsthost = p.ip.src
-            dsteth  = p.eth.src
-            srceth  = p.eth.dst
-        elif int(pProto.dstport) < 1024:
-            srvport = pProto.dstport
-            srchost = p.ip.src
-            dsthost = p.ip.dst
-            dsteth  = p.eth.dst
-            srceth  = p.eth.src
-        elif int(pProto.srcport) < 1024: 
-            srvport = pProto.srcport
-            srchost = p.ip.dst
-            dsthost = p.ip.src
-            dsteth  = p.eth.src
-            srceth  = p.eth.dst
-        elif int(pProto.dstport) <= int(pProto.srcport): # if = then could be false direction
-            srvport = pProto.dstport
-            srchost = p.ip.src
-            dsthost = p.ip.dst
-            dsteth  = p.eth.dst
-            srceth  = p.eth.src
-        elif int(pProto.srcport) < int(pProto.dstport):
-            srvport = pProto.srcport
-            srchost = p.ip.dst
-            dsthost = p.ip.src
-            dsteth  = p.eth.src
-            srceth  = p.eth.dst
-
-        # If port number selected, find a service name
-        if srvport:
-            if str(srvport) in config[tProto]: 
-                nameport = config[tProto][str(srvport)]
+            # Check for TCP or UDP layer or continue
+            pProto = ''
+            tProto = ''
+            if 'TCP Layer' in str(p.layers) and args.tcp:
+                pProto = p.tcp
+                tProto = 'TCP'
+            # UDP Layer test includes avoiding IPv6 packets by checking for IP Layer
+            elif 'UDP Layer' in str(p.layers) and 'IP Layer' in str(p.layers) and args.udp: 
+                pProto = p.udp
+                tProto = 'UDP'
             else:
-                nameport = p.highest_layer
-        else:
-            continue
+                continue
 
-        # Process packet
-        proto_conn_keys = list(proto_conn_dict.keys())
+            # Update host_addrs
+            host_keys  = list(host_addrs.keys())
+            vdict_keys = list(vdict.keys())
+            vdst, vsrc = '',''
+            if p.eth.dst[0:8].upper() in vdict_keys: vdst = vdict[p.eth.dst[0:8].upper()]
+            if p.eth.src[0:8].upper() in vdict_keys: vsrc = vdict[p.eth.src[0:8].upper()]
+            if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = [p.ip.dst, vdst]
+            if p.eth.src not in host_keys: host_addrs[p.eth.src] = [p.ip.src, vsrc]
 
-        # Check for saved conns to destination
-        if dsthost not in proto_conn_keys:
-            proto_conn_dict[dsthost] = {}
+            # Check VLAN tag
+            dvlan = ''
+            vid   = ''
+            vtype = ''
+            if 'VLAN Layer' in str(p.layers):
+                vdata = p['VLAN']
+                if 'id' in list(vdata.field_names): vid = str(vdata.id)
+                if 'etype' in list(vdata.field_names): vtype = str(vdata.etype)
+            if vid: 
+                dvlan = vid
+                if vtype: dvlan = dvlan + "/" + vtype
 
-        # Process saved services
-        src_keys = list(proto_conn_dict[dsthost].keys())
+            # Prefer ports that are less than 1024 to identify service
+            srvport = 0
+            if str(pProto.dstport) in config[tProto]: # could cause false flow direction
+                srvport = pProto.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif str(pProto.srcport) in config[tProto]:
+                srvport = pProto.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+            elif int(pProto.dstport) < 1024:
+                srvport = pProto.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif int(pProto.srcport) < 1024: 
+                srvport = pProto.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
+            elif int(pProto.dstport) <= int(pProto.srcport): # if = then could be false direction
+                srvport = pProto.dstport
+                srchost = p.ip.src
+                dsthost = p.ip.dst
+                dsteth  = p.eth.dst
+                srceth  = p.eth.src
+            elif int(pProto.srcport) < int(pProto.dstport):
+                srvport = pProto.srcport
+                srchost = p.ip.dst
+                dsthost = p.ip.src
+                dsteth  = p.eth.src
+                srceth  = p.eth.dst
 
-        if srchost not in src_keys:
-            proto_conn_dict[dsthost][srchost] = []
+            # If port number selected, find a service name
+            if srvport:
+                if str(srvport) in config[tProto]: 
+                    nameport = config[tProto][str(srvport)]
+                else:
+                    nameport = p.highest_layer
+            else:
+                continue
 
-        # Review stored Service ports and update
-        noSrvDst = True
-        for srvDst in proto_conn_dict[dsthost][srchost]:
-            if srvDst['dstport'] == str(srvport):
-                noSrvDst = False
-                # Add VLAN tags, don't stomp
-                if srvDst['vlan']:
-                    dvlan = ','.join([dvlan,srvDst['vlan']])
-                    break
+            # Process packet
+            proto_conn_keys = list(proto_conn_dict.keys())
 
-        # Service port not detected, add new
-        if noSrvDst:
-            # Save source
-            fullproto = tProto + "/" + nameport
-            proto_src_dict = {'dstport':srvport,'proto':fullproto,'vlan':dvlan}
-            proto_conn_dict[dsthost][srchost].append(proto_src_dict)
+            # Check for saved conns to destination
+            if dsthost not in proto_conn_keys:
+                proto_conn_dict[dsthost] = {}
+
+            # Process saved services
+            src_keys = list(proto_conn_dict[dsthost].keys())
+
+            if srchost not in src_keys:
+                proto_conn_dict[dsthost][srchost] = []
+
+            # Review stored Service ports and update
+            noSrvDst = True
+            for srvDst in proto_conn_dict[dsthost][srchost]:
+                if srvDst['dstport'] == str(srvport):
+                    noSrvDst = False
+                    # Add VLAN tags, don't stomp
+                    if srvDst['vlan']:
+                        dvlan = ','.join([dvlan,srvDst['vlan']])
+                        break
+
+            # Service port not detected, add new
+            if noSrvDst:
+                # Save source
+                fullproto = tProto + "/" + nameport
+                proto_src_dict = {'dstport':srvport,'proto':fullproto,'vlan':dvlan}
+                proto_conn_dict[dsthost][srchost].append(proto_src_dict)
+            
+            bar()
 
     # Output JSON data to selected location
     if args.jsondir:

@@ -35,9 +35,14 @@ def get_packets(inFile,inFilter=''):
     Read a PCAP file and return a pyshark.capture.file_capture.FileCapture object
     """
     if inFilter: 
-        return pyshark.FileCapture(inFile, display_filter=inFilter) 
+        packets = pyshark.FileCapture(inFile, display_filter=inFilter) 
     else:   
-        return pyshark.FileCapture(inFile)
+        packets = pyshark.FileCapture(inFile)
+    # Loading packets means we will process PCAP twice
+    # This method allows us to use the alive_bar progress bar to time processing
+    # Use the alive_bar time and double it to get approximate processing time
+    packets.load_packets()
+    return packets
 
 # Get lines from a file
 def get_file(inFile):
