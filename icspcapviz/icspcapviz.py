@@ -37,9 +37,9 @@ if __name__ == "__main__":
     parser.add_argument('-j','--json', dest='jsondir', nargs='?', default='', help='Path to directory to write JSON files', metavar='JSONDIR')
     parser.add_argument('-p','--neopasswd', dest='neopasswd', default='admin', help='Password for Neo4J database (Default: admin)', metavar='ADMIN')
     parser.add_argument('-t','--tcp', action='store_false', help='Disable processing TCP packets')
-    parser.add_argument('-u','--udp', action='store_true', help='Disable processing UDP packets')
-    parser.add_argument('-a','--arp', action='store_true', help='Disable processing ARP packets')
-    parser.add_argument('-i','--icmp', action='store_true', help='Disable processing ICMP packets')
+    parser.add_argument('-u','--udp', action='store_true', help='Enable processing UDP packets')
+    parser.add_argument('-a','--arp', action='store_true', help='Enable processing ARP packets')
+    parser.add_argument('-i','--icmp', action='store_true', help='Enable processing ICMP packets')
     parser.add_argument('-n','--nodename', dest='nodename', nargs='?', default='Host', metavar='NODENAME', help='Names for nodes in Neo4j (Default: Host)')
     parser.add_argument('-F','--filter', dest='displayfilter', nargs='?', default='', metavar='DISPLAY_FILTER', help='Wireshark / Tshark display filter')
 
@@ -94,7 +94,7 @@ if __name__ == "__main__":
             continue
 
         # Update host_addrs
-        host_keys = list(host_addrs.keys())
+        host_keys  = list(host_addrs.keys())
         vdict_keys = list(vdict.keys())
         vdst, vsrc = '',''
         if p.eth.dst[0:8].upper() in vdict_keys: vdst = vdict[p.eth.dst[0:8].upper()]
@@ -166,7 +166,7 @@ if __name__ == "__main__":
         proto_conn_keys = list(proto_conn_dict.keys())
 
         # Check for saved conns to destination
-        if srvport not in proto_conn_keys:
+        if dsthost not in proto_conn_keys:
             proto_conn_dict[dsthost] = {}
 
         # Process saved services
@@ -174,14 +174,23 @@ if __name__ == "__main__":
 
         if srchost not in src_keys:
             proto_conn_dict[dsthost][srchost] = []
-        else:
-            # Add VLAN tags, don't stomp
-            if proto_conn_dict[dsthost][srchost]['vlan']:
-                dvlan = ','.join([dvlan,proto_conn_dict[dsthost][srchost]['vlan']])
-        # Save source
-        fullproto = tProto + "/" + nameport
-        proto_src_dict = {'dstport':srvport,'proto':fullproto,'vlan':dvlan}
-        proto_conn_dict[dsthost][srchost].append(proto_src_dict)
+
+        # Review stored Service ports and update
+        noSrvDst = True
+        for srvDst in proto_conn_dict[dsthost][srchost]:
+            if srvDst['dstport'] == str(srvport):
+                noSrvDst = False
+                # Add VLAN tags, don't stomp
+                if srvDst['vlan']:
+                    dvlan = ','.join([dvlan,srvDst['vlan']])
+                    break
+
+        # Service port not detected, add new
+        if noSrvDst:
+            # Save source
+            fullproto = tProto + "/" + nameport
+            proto_src_dict = {'dstport':srvport,'proto':fullproto,'vlan':dvlan}
+            proto_conn_dict[dsthost][srchost].append(proto_src_dict)
 
     # Output JSON data to selected location
     if args.jsondir:

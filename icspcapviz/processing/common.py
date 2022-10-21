@@ -73,11 +73,11 @@ def process_protocols(inHosts,inData,inGraph,inNodeName):
                 c['vlan'] = str(conn['vlan'])
                 if not s['vlan']: s['vlan'] = str(conn['vlan'])
                 if conn['vlan']:
-                    SENDtcp = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']) + "/VLAN:" + str(conn['vlan']))
+                    setRel = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']) + "/VLAN:" + str(conn['vlan']))
                 else:
-                    SENDtcp = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']))
+                    setRel = Relationship.type(str(conn['proto']) + "/" + str(conn['dstport']))
                 # client is the source, so it goes first
-                inGraph.merge(SENDtcp(c, s), inNodeName, 'name')
+                inGraph.merge(setRel(c, s), inNodeName, 'name')
 
 # Process ICMP packets
 def process_icmp():
