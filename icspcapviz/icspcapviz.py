@@ -9,9 +9,6 @@ from alive_progress import alive_bar
 ####################
 # Globals
 ####################
-MAJOR_VER  = '0'
-MINOR_VER  = '7.0'
-VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 PACKETS    = False
 
 ####################
