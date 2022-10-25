@@ -53,6 +53,8 @@ if __name__ == "__main__":
         usage(parser,message="PCAP file does not exist: %s"%(args.pcapname))
     try:
         PACKETS = get_packets(args.pcapname,inFilter=args.displayfilter)
+        # AVG_PACKET_SIZE is best guess for ICS packets
+        num_packets = int(os.path.getsize(args.pcapname)/AVG_PACKET_SIZE)
     except:
         usage(parser,message="Failed to process PCAP file: %s."%(args.pcapname))
 
@@ -72,8 +74,8 @@ if __name__ == "__main__":
     host_addrs = {}
     proto_conn_dict = {}
 
-    # Process packets
-    with alive_bar(len(PACKETS)) as bar:
+    # Process packets, alive_bar num_packets is best guess
+    with alive_bar(num_packets) as bar:
         # Double time from alive_bar stats to get actual processing time, packets processed twice
         for p in PACKETS:
             # New storage for packet source data
@@ -92,15 +94,6 @@ if __name__ == "__main__":
             else:
                 continue
 
-            # Update host_addrs
-            host_keys  = list(host_addrs.keys())
-            vdict_keys = list(vdict.keys())
-            vdst, vsrc = '',''
-            if p.eth.dst[0:8].upper() in vdict_keys: vdst = vdict[p.eth.dst[0:8].upper()]
-            if p.eth.src[0:8].upper() in vdict_keys: vsrc = vdict[p.eth.src[0:8].upper()]
-            if p.eth.dst not in host_keys: host_addrs[p.eth.dst] = [p.ip.dst, vdst]
-            if p.eth.src not in host_keys: host_addrs[p.eth.src] = [p.ip.src, vsrc]
-
             # Check VLAN tag
             dvlan = ''
             vid   = ''
@@ -116,41 +109,52 @@ if __name__ == "__main__":
             # Prefer ports that are less than 1024 to identify service
             srvport = 0
             if str(pProto.dstport) in config[tProto]: # could cause false flow direction
-                srvport = pProto.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
+                srvport = str(pProto.dstport)
+                srchost = str(p.ip.src)
+                dsthost = str(p.ip.dst)
+                dsteth  = str(p.eth.dst)
+                srceth  = str(p.eth.src)
             elif str(pProto.srcport) in config[tProto]:
-                srvport = pProto.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
+                srvport = str(pProto.srcport)
+                srchost = str(p.ip.dst)
+                dsthost = str(p.ip.src)
+                dsteth  = str(p.eth.src)
+                srceth  = str(p.eth.dst)
             elif int(pProto.dstport) < 1024:
-                srvport = pProto.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
+                srvport = str(pProto.dstport)
+                srchost = str(p.ip.src)
+                dsthost = str(p.ip.dst)
+                dsteth  = str(p.eth.dst)
+                srceth  = str(p.eth.src)
             elif int(pProto.srcport) < 1024: 
-                srvport = pProto.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
+                srvport = str(pProto.srcport)
+                srchost = str(p.ip.dst)
+                dsthost = str(p.ip.src)
+                dsteth  = str(p.eth.src)
+                srceth  = str(p.eth.dst)
             elif int(pProto.dstport) <= int(pProto.srcport): # if = then could be false direction
-                srvport = pProto.dstport
-                srchost = p.ip.src
-                dsthost = p.ip.dst
-                dsteth  = p.eth.dst
-                srceth  = p.eth.src
+                srvport = str(pProto.dstport)
+                srchost = str(p.ip.src)
+                dsthost = str(p.ip.dst)
+                dsteth  = str(p.eth.dst)
+                srceth  = str(p.eth.src)
             elif int(pProto.srcport) < int(pProto.dstport):
-                srvport = pProto.srcport
-                srchost = p.ip.dst
-                dsthost = p.ip.src
-                dsteth  = p.eth.src
-                srceth  = p.eth.dst
+                srvport = str(pProto.srcport)
+                srchost = str(p.ip.dst)
+                dsthost = str(p.ip.src)
+                dsteth  = str(p.eth.src)
+                srceth  = str(p.eth.dst)
+
+            # Update host_addrs
+            host_keys  = list(host_addrs.keys())
+            vdict_keys = list(vdict.keys())
+            vdst, vsrc = '',''
+            if dsteth[0:8].upper() in vdict_keys: vdst = vdict[dsteth[0:8].upper()]
+            if srceth[0:8].upper() in vdict_keys: vsrc = vdict[srceth[0:8].upper()]
+            if dsteth not in host_keys: host_addrs[dsteth] = [vdst,[dsthost]]
+            if dsthost not in host_addrs[dsteth][1]: host_addrs[dsteth][1].append(dsthost)
+            if srceth not in host_keys: host_addrs[srceth] = [vsrc,[srchost]]
+            if srchost not in host_addrs[srceth][1]: host_addrs[srceth][1].append(srchost)
 
             # If port number selected, find a service name
             if srvport:
@@ -205,5 +209,7 @@ if __name__ == "__main__":
         neo_graph = Graph(password=args.neopasswd)
     except:
         usage(parser,message="Failed to connect to Neo4J database.")
-
+    
+    # Graph packet data
+    print('Host Addrs: %s'%(host_addrs))
     process_protocols(host_addrs,proto_conn_dict,neo_graph,args.nodename)
