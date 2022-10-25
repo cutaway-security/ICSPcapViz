@@ -5,7 +5,7 @@ import pyshark
 from py2neo import Graph, Node, Relationship
 
 MAJOR_VER  = '1'
-MINOR_VER  = '1.1'
+MINOR_VER  = '1.2'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "##############################"
 # ICS packets are small, this will be a best guess
