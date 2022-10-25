@@ -5,9 +5,11 @@ import pyshark
 from py2neo import Graph, Node, Relationship
 
 MAJOR_VER  = '1'
-MINOR_VER  = '1.0'
+MINOR_VER  = '1.1'
 VERSION    = '.'.join([MAJOR_VER,MINOR_VER])
 SEPERATOR  = "##############################"
+# ICS packets are small, this will be a best guess
+AVG_PACKET_SIZE = 170
 
 ##################
 # Utility Functions
@@ -17,13 +19,15 @@ def version(inName):
     print("%s: %s"%(inName,VERSION))
     sys.exit()
 
-def get_key_by_value(data, val):
+# Expected Data format == {'eth addr': ['vendor info',[ip addrs]]}
+def get_eth_by_ip(data, val):
     # Expect IP and vendor information in data
     keys = data.keys()
     for k in keys:
-        if data[k][0] == val:
-            return [str(data[k][0]),str(data[k][1])]
-    return '',''
+        # Loop through values
+        if val in data[k][1]:
+            return k
+    return ''
 
 ##################
 # Processing Functions
@@ -35,9 +39,10 @@ def get_packets(inFile,inFilter=''):
     Read a PCAP file and return a pyshark.capture.file_capture.FileCapture object
     """
     if inFilter: 
-        return pyshark.FileCapture(inFile, display_filter=inFilter) 
+        packets = pyshark.FileCapture(inFile, display_filter=inFilter) 
     else:   
-        return pyshark.FileCapture(inFile)
+        packets = pyshark.FileCapture(inFile)
+    return packets
 
 # Get lines from a file
 def get_file(inFile):
@@ -54,8 +59,14 @@ def get_file(inFile):
 def process_protocols(inHosts,inData,inGraph,inNodeName):
     # Process each server application as s
     for dst in list(inData.keys()):
+        shost_eth = ''
         s = Node(inNodeName, name=str(dst))
-        s['ethaddr'],s['vendor'] = get_key_by_value(inHosts,dst)
+        shost_eth = get_eth_by_ip(inHosts,dst)
+        print('shost %s: %s'%(dst,shost_eth))
+        if inHosts[shost_eth][1]:
+            s['ethaddr'],s['vendor'] = str(shost_eth),inHosts[shost_eth][0]
+        else:
+            s['ethaddr'],s['vendor'] = str(shost_eth),''
         dstSubnet=str(dst).split('.')
         s['subnetA'] = str(dstSubnet[0])
         s['subnetB'] = str('.'.join([dstSubnet[0],dstSubnet[1]]))
@@ -63,8 +74,14 @@ def process_protocols(inHosts,inData,inGraph,inNodeName):
         s['vlan'] = ''
         # Process each client talking to an application as c
         for src in list(inData[dst].keys()):
+            chost_eth = ''
             c = Node(inNodeName,name=str(src))
-            c['ethaddr'],c['vendor'] = get_key_by_value(inHosts,src)
+            chost_eth = get_eth_by_ip(inHosts,src)
+            print('chost %s: %s'%(src,chost_eth))
+            if inHosts[chost_eth][1]:
+                c['ethaddr'],c['vendor'] = str(chost_eth),inHosts[chost_eth][0]
+            else:
+                c['ethaddr'],c['vendor'] = str(chost_eth),''
             srcSubnet=str(dst).split('.')
             c['subnetA'] = str(srcSubnet[0])
             c['subnetB'] = str('.'.join([srcSubnet[0],srcSubnet[1]]))

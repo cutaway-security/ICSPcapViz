@@ -1,6 +1,10 @@
+alive_progress
 argparse
+configparser
+crcmod
+hashlib
+hmac
+numpy
 pyshark
 py2neo
-numpy
 scipy
-alive_progress
