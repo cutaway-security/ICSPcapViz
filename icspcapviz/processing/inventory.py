@@ -2,7 +2,18 @@
 from socket import getservbyname, getservbyport
 import numpy as np
 from scipy.stats import entropy
-    
+from data.dataObjects import *
+
+
+# Use services configuration file: TCP, UDP
+config = ''
+config = get_service_references()
+#print("config: %s"%(config['TCP']['502']))
+
+# Vendor MAC Information
+vdict = {}
+vdict = get_mac_vendors()
+
 ####################
 # Inventory functions
 ####################
@@ -68,7 +79,8 @@ def get_target_lists(inPackets):
         # Source port is lower   
         if src_port and src_port < dst_port:
             try:
-                srv_name = str(src_port) + "/" + getservbyport(src_port,trans.lower()) + "/" + trans
+                #srv_name = str(src_port) + "/" + getservbyport(src_port,trans.lower()) + "/" + trans
+                srv_name = str(src_port) + "/" + config[trans][str(src_port)] + "/" + trans
             except:
                 # Port numbers that are not associated with a known service will error
                 srv_name = str(src_port) + "/" + "Unknown" + "/" + trans
@@ -78,7 +90,8 @@ def get_target_lists(inPackets):
         # Destination port is lower   
         if src_port and src_port > dst_port:
             try:
-                srv_name = str(dst_port) + "/" + getservbyport(dst_port,trans.lower()) + "/" + trans
+                #srv_name = str(dst_port) + "/" + getservbyport(dst_port,trans.lower()) + "/" + trans
+                srv_name = str(dst_port) + "/" + config[trans][str(dst_port)] + "/" + trans
             except:
                 # Port numbers that are not associated with a known service will error
                 srv_name = str(dst_port) + "/" + "Unknown" + "/" + trans
@@ -107,26 +120,4 @@ def print_unknown_raw(inPackets):
             print("%s: %s:%s -> %s:%s %s %s Len: %s"%(p.frame_info.number,p.ip.src,p.tcp.srcport,p.ip.dst,p.tcp.dstport,dir,p.DATA.data,int(len(p.DATA.data)/2)))
             print("%s Raw: %s"%(' '*46,bytes.fromhex(p.DATA.data)))
         except:
-            continue
-
-def print_unknown_entropy(inPackets):
-    """
-    Analyze a pyshark.capture.file_capture.FileCapture object and search for packets with un-decoded data.
-    Print data information and the entropy of the raw data.
-    """
-    for p in inPackets:
-        if '<TCP Layer>' not in str(p.layers) or 'DATA' != p.highest_layer:
-            continue
-        # Check direction, assume smaller port is server and application
-        # TODO: should probably do the same for UDP
-        if p.tcp.srcport > p.tcp.dstport:
-            dir = 'Query:           '
-        else:
-            dir = 'Response:'
-        try:
-            #print("%s: %s:%s -> %s:%s %s %s Len: %s"%(p.frame_info.number,p.ip.src,p.tcp.srcport,p.ip.dst,p.tcp.dstport,dir,p.DATA.data,int(len(p.DATA.data)/2)))
-            # Review the bytes' entropy value. Values >= 7 may be encrypted or compressed
-            print("Frame Number: %s ENT: %s"%(p.frame_info.number,round(entropy(np.frombuffer(bytes.fromhex(p.DATA.data),dtype=np.uint32)),2)))
-        except:
-            # TODO: FIXME the data length is not always correct
             continue

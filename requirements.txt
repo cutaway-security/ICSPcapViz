@@ -2,8 +2,6 @@ alive_progress
 argparse
 configparser
 crcmod
-hashlib
-hmac
 numpy
 pyshark
 py2neo

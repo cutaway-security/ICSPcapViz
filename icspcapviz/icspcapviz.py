@@ -32,7 +32,7 @@ if __name__ == "__main__":
     parser.add_argument('-v','--version', action='store_true', help='Print version')
     parser.add_argument('-f', '--file', dest='pcapname', nargs='?', default='', metavar='PCAP', help='Path to network packet capture file')
     parser.add_argument('-j','--json', dest='jsondir', nargs='?', default='', help='Path to directory to write JSON files', metavar='JSONDIR')
-    parser.add_argument('-p','--neopasswd', dest='neopasswd', default='admin', help='Password for Neo4J database (Default: admin)', metavar='ADMIN')
+    parser.add_argument('-p','--neopasswd', dest='neopasswd', default='admin123', help='Password for Neo4J database (Default: admin123)', metavar='ADMIN')
     parser.add_argument('-t','--tcp', action='store_false', help='Disable processing TCP packets')
     parser.add_argument('-u','--udp', action='store_true', help='Enable processing UDP packets')
     parser.add_argument('-a','--arp', action='store_true', help='Enable processing ARP packets')

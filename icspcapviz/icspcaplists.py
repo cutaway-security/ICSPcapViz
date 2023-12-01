@@ -5,6 +5,7 @@ from processing.common import *
 import processing.credentials as creds
 import processing.protocols as proto
 import processing.inventory as inven
+import processing.entropy as entropy
 from data.dataObjects import *
 
 ####################
@@ -31,7 +32,8 @@ if __name__ == "__main__":
     parser.add_argument('-F','--filter', dest='displayfilter', nargs='?', default='', metavar='DISPLAY_FILTER', help='Wireshark / Tshark display filter')
     parser.add_argument('-c','--creds', dest='creds', nargs='?', choices=['all','ntlm','http','kerberos'], default='', const='all', help='Locate and print output for credentials. Choices: \'all\': Default, run all modules. \'ntlm\': process ntlmssp module. \'http\': process HTTP Basic Auth module. \'kerberos\': process kerberos module.')
     parser.add_argument('-p','--protos', dest='protos', nargs='?', choices=['all','dnp3data','dnp3sav5'], default='', const='all', help='Locate and print output for ICS protocols. Choices: \'all\': Default, process all ICS protocol modules. \'dnp3data\': process DNP3 data module to show data chunks. \'dnp3sav5\': process DNP3 SAv5 module to list Secure Authentication version 5 challenge and response in PWDump format.')
-    parser.add_argument('-i','--inventory', dest='inven', nargs='?', choices=['all','protocols','hardware','services','raw','entropy'], default='', const='all', help='Locate and print output for ICS protocols. Choices: \'all\': Default, process all inventory modules. \'protocols\': list all protocols. \'hardware\': list all hardware addresses and IP addresses. \'services\': list all services with IP addresses. \'raw\': show raw bytes for packets with unknown data. \'entropy\': show entropy values for packets with unknown data to detect encryption or compression.')
+    parser.add_argument('-i','--inventory', dest='inven', nargs='?', choices=['all','protocols','hardware','services','raw'], default='', const='all', help='Locate and print output for ICS protocols. Choices: \'all\': Default, process all inventory modules. \'protocols\': list all protocols. \'hardware\': list all hardware addresses and IP addresses. \'services\': list all services with IP addresses. \'raw\': show raw bytes for packets with unknown data.')
+    parser.add_argument('-e','--entropy', dest='entropy', nargs='?', choices=['all','entropy','histogram'], default='', const='all', help='Locate and print output for ICS protocols. Choices: \'all\': Default, process all inventory modules. \'entropy\': show entropy values for packets with unknown data to detect encryption or compression. \'histogram\': show histogram for values from packets to detect plain text, encrypted, or compressed data.')
 
     # Object for user arguments
     args = parser.parse_args()
@@ -125,16 +127,32 @@ if __name__ == "__main__":
             print_dictionary_list(inven.get_target_lists(PACKETS))
             print()
         # Print raw bytes module
+        '''
         if args.inven == 'raw' or args.inven == 'all':
             print("%s"%(SEPERATOR))
             print("# Print raw bytes for packets with unknown data")
             print("%s"%(SEPERATOR))
             inven.print_unknown_raw(PACKETS)
             print()
+        '''
+
+    ###############################
+    # Generate entropy lists from communications found in the PCAP.
+    # Modules: entropy,histogram
+    ###############################
+    if args.entropy:
         # Print entropy of raw bytes module
-        if args.inven == 'entropy' or args.inven == 'all':
+        if args.entropy == 'entropy' or args.entropy == 'all':
             print("%s"%(SEPERATOR))
-            print("# Print entropy of raw bytes for packets with unknown data")
+            print("# Print entropy of raw bytes for packets")
             print("%s"%(SEPERATOR))
-            inven.print_unknown_entropy(PACKETS)
+            entropy.print_entropy(PACKETS)
+            print()
+        
+        # Print histogram of raw bytes module
+        if args.entropy == 'histogram' or args.entropy == 'all':
+            print("%s"%(SEPERATOR))
+            print("# Print entropy of raw bytes for packets")
+            print("%s"%(SEPERATOR))
+            entropy.print_histogram(PACKETS)
             print()
